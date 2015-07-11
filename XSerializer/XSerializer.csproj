@@ -41,21 +41,35 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Serialization\Prompts.zh.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Prompts.zh.resx</DependentUpon>
+    </Compile>
     <Compile Include="Serialization\Prompts.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Prompts.resx</DependentUpon>
     </Compile>
     <Compile Include="Serialization\SerializationHelper.cs" />
+    <Compile Include="Serialization\XSerializerCache.cs" />
     <Compile Include="Serialization\XSerializationContext.cs" />
     <Compile Include="Serialization\XSerializer.cs" />
     <Compile Include="Serialization\XSserializerNamespaceCollection.cs" />
     <Compile Include="Serialization\XSerializerAttributes.cs" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Serialization\Prompts.zh.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Prompts.zh.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
     <EmbeddedResource Include="Serialization\Prompts.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Prompts.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

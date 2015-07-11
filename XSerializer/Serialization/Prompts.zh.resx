@@ -118,21 +118,21 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="CannotSerializeAsAttribute" xml:space="preserve">
-    <value>Cannot represent {0} as attribute value.</value>
+    <value>无法将 {0} 作为属性值进行序列化。</value>
   </data>
   <data name="CircularReferenceDetected" xml:space="preserve">
-    <value>A circular reference of {0} has been detected.</value>
+    <value>检测到了 {0} 的循环引用。</value>
   </data>
   <data name="CollectionPropertyElementNotSupported" xml:space="preserve">
-    <value>Cannot serialize {0} as an element in collection type.</value>
+    <value>无法以元素的形式保存集合对象的属性：{0}。</value>
   </data>
   <data name="InvalidAttributesCombination" xml:space="preserve">
-    <value>Invalid attributes combination: {0}.</value>
+    <value>无效的特性组合：{0}。</value>
   </data>
   <data name="InvalidObjectType" xml:space="preserve">
-    <value>Cannot cast {0} to {1}.</value>
+    <value>无法将 {0} 作为对象类型 {1} 使用。</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
-    <value>Type {0} has not been registered in current scope.</value>
+    <value>在当期作用域内未注册类型：{0}。</value>
   </data>
 </root>

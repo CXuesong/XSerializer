@@ -28,6 +28,24 @@ namespace Undefined.Serialization
             return XName.Get(_LocalName, _Namespace);
         }
 
+        internal XName GetName(string defaultLocalName)
+        {
+            return XName.Get(_LocalName ?? defaultLocalName, _Namespace);
+        }
+
+        internal XName GetName(XName defaultName)
+        {
+            return XName.Get(_LocalName ?? defaultName.LocalName, _Namespace ?? defaultName.NamespaceName);
+        }
+
+        /// <param name="localName">
+        /// XML元素或属性的本地名称。如果为<c>null</c>，则表示使用类型名称或成员名称。
+        /// Local attribute or element name. <c>null</c> if type or member name is used.
+        /// </param>
+        /// <param name="namespaceUri">
+        /// XML元素或属性的命名空间。可为<c>null</c>。
+        /// Namespace of the attribute or element. Can be <c>null</c>。
+        /// </param>
         protected XNamedAttributeBase(string localName, string namespaceUri)
         {
             _LocalName = localName;
@@ -35,6 +53,25 @@ namespace Undefined.Serialization
         }
 
         protected XNamedAttributeBase() : this(null, null)
+        { }
+    }
+
+    /// <summary>
+    /// 当指定的类型作为XML根节点时，控制根节点的特性。
+    /// Controls XML serialization of the attributed target as XML root element.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    public class XRootAttribute : XNamedAttributeBase
+    {
+        public XRootAttribute()
+        { }
+
+        public XRootAttribute(string localName)
+            : base(localName, null)
+        { }
+
+        public XRootAttribute(string localName, string namespaceUri)
+            : base(localName, namespaceUri)
         { }
     }
 
@@ -77,6 +114,47 @@ namespace Undefined.Serialization
     }
 
     /// <summary>
+    /// 为当前集合的子级指定派生类型和/或这些类型的元素名称。此特性可以多次使用。
+    /// Specifies the derived type and/or XML element name of child items (of the collection field/property).
+    /// This attribute may be used multiple times.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    public class XCollectionItemAttribute : XNamedAttributeBase
+    {
+        /// <summary>
+        /// Specifies the derived type of the item.
+        /// If it's <c>null</c>, then the attribute is applied to the type of
+        /// the field/property that applied this attribute.
+        /// </summary>
+        public Type Type { get; set;}
+
+        public XCollectionItemAttribute()
+        { }
+
+        public XCollectionItemAttribute(string localName)
+            : this(null, localName, null)
+        { }
+
+        public XCollectionItemAttribute(string localName, string namespaceUri)
+            : this(null, localName, namespaceUri)
+        { }
+
+        public XCollectionItemAttribute(Type type)
+            : this(type, null, null)
+        { }
+
+        public XCollectionItemAttribute(Type type, string localName)
+            : this(type, localName, null)
+        { }
+
+        public XCollectionItemAttribute(Type type, string localName, string namespaceUri)
+            : base(localName, namespaceUri)
+        {
+            Type = type;
+        }
+    }
+
+    /// <summary>
     /// 为指定的类型提供默认的 XML 完全限定名。
     /// Specifies the XML qualified name for the class or structure.
     /// </summary>
@@ -93,6 +171,27 @@ namespace Undefined.Serialization
         public XTypeAttribute(string localName, string namespaceUri)
             : base(localName, namespaceUri)
         { }
+    }
+
+    /// <summary>
+    /// 允许序列化过程中识别指定类型的对象。
+    /// Allows the specified type to be recognized during serialization.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true)]
+    public class XIncludeAttribute : Attribute
+    {
+        private Type _Type;
+
+        public XIncludeAttribute(Type type)
+        {
+            if (type == null) throw new ArgumentNullException("type");
+            _Type = type;
+        }
+
+        public Type Type
+        {
+            get { return _Type; }
+        }
     }
 
     /// <summary>

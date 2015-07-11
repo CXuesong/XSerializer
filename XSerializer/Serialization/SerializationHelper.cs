@@ -1,8 +1,12 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using System.Reflection;
+using System.Xml.Linq;
 using Undefined.Serialization;
 
 namespace Undefined.Serialization
@@ -54,6 +58,97 @@ namespace Undefined.Serialization
             if (value is Complex) return ToXString((Complex)value);
             if (value is Enum) return ToXString((Enum)value);
             return null;
+        }
+
+        /// <summary>
+        /// 获取与指定类型对应的 XML 元素名称。
+        /// </summary>
+        /// <returns>如果类型未使用 XTypeAttribute 特性，则会为类型生成一个元素名称。</returns>
+        public static XName GetName(Type t)
+        {
+            Debug.Assert(t != null);
+            var attr = t.GetCustomAttribute<XTypeAttribute>();
+            if (attr != null) return attr.GetName(attr.LocalName == null ? GetNameDirect(t) : null);
+            return GetNameDirect(t);
+        }
+
+        private static string GetNameDirect(Type t)
+        {
+            var rawName = t.Name;
+            if (t.IsArray)
+                return "ArrayOf" + GetNameDirect(GetCollectionItemType(t));
+            if (t.IsGenericType)
+            {
+                // List`1[String] --> ListOfString
+                var pos = rawName.IndexOf('`');
+                if (pos > 0) rawName = rawName.Substring(0, pos);
+                rawName += "Of" + string.Join(null, from a in t.GenericTypeArguments select GetNameDirect(a));
+            }
+            return rawName;
+        }
+
+        public static XName GetName(MemberInfo m, XNamedAttributeBase attr = null)
+        {
+            Debug.Assert(m != null);
+            if (attr == null) attr = m.GetCustomAttribute<XElementAttribute>();
+            if (attr == null) m.GetCustomAttribute<XAttributeAttribute>();
+            if (attr != null) return XName.Get(attr.LocalName ?? m.Name, attr.Namespace ?? "");
+            return m.Name;
+        }
+        public static Type GetMemberValueType(MemberInfo member)
+        {
+            var f = member as FieldInfo;
+            if (f != null) return f.FieldType;
+            var p = member as PropertyInfo;
+            if (p != null) return p.PropertyType;
+            throw new NotSupportedException();
+        }
+
+        public static object GetMemberValue(MemberInfo member, object obj)
+        {
+            var f = member as FieldInfo;
+            if (f != null) return f.GetValue(obj);
+            var p = member as PropertyInfo;
+            if (p != null) return p.GetValue(obj);
+            throw new NotSupportedException();
+        }
+
+        /// <summary>
+        /// 获取指定集合类型在声明时所使用的元素类型。
+        /// </summary>
+        public static Type GetCollectionItemType(Type collectionType)
+        {
+            Debug.Assert(collectionType != null && typeof (IEnumerable).IsAssignableFrom(collectionType));
+            var ienum = collectionType.GetInterfaces().FirstOrDefault(t => t.IsGenericType &&
+                t.GetGenericTypeDefinition() == typeof (IEnumerable<>));
+            if (ienum == null) return typeof (object);
+            return ienum.GenericTypeArguments[0];
+        }
+
+        /// <summary>
+        /// 判断指定的类型与期望类型是否相同，或者可进行扩大转换。
+        /// </summary>
+        public static void AssertKindOf(Type desired, Type actual)
+        {
+            Debug.Assert(desired != null && actual != null);
+            if (!desired.IsAssignableFrom(actual))
+                throw new InvalidCastException(String.Format(Prompts.InvalidObjectType, actual, desired));
+        }
+
+        /// <summary>
+        /// 判断指定的类型是否为可直接序列化的简单类型。
+        /// </summary>
+        public static bool IsSimpleType(Type t)
+        {
+            //对于 Nullable 的处理。
+            if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>))
+                return IsSimpleType(t.GenericTypeArguments[0]);
+            return t == typeof(String) || t == typeof(Byte) || t == typeof(SByte)
+                   || t == typeof(Int16) || t == typeof(UInt16) || t == typeof(Int32) || t == typeof(UInt32)
+                   || t == typeof(Int64) || t == typeof(UInt64) || t == typeof(Single) || t == typeof(Double)
+                   || t == typeof(IntPtr) || t == typeof(UIntPtr)
+                   || t == typeof(DateTime) || t == typeof(TimeSpan) || t == typeof(DateTimeOffset)
+                   || t == typeof(Guid);
         }
     }
 

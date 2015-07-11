@@ -61,7 +61,7 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
-        ///   查找类似 无法将 {0} 作为属性值进行序列化。 的本地化字符串。
+        ///   查找类似 Cannot represent {0} as attribute value. 的本地化字符串。
         /// </summary>
         internal static string CannotSerializeAsAttribute {
             get {
@@ -70,7 +70,16 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
-        ///   查找类似 无法以元素的形式保存集合对象的属性：{0}。 的本地化字符串。
+        ///   查找类似 A circular reference of {0} has been detected. 的本地化字符串。
+        /// </summary>
+        internal static string CircularReferenceDetected {
+            get {
+                return ResourceManager.GetString("CircularReferenceDetected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cannot serialize {0} as an element in collection type. 的本地化字符串。
         /// </summary>
         internal static string CollectionPropertyElementNotSupported {
             get {
@@ -79,7 +88,7 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
-        ///   查找类似 无效的特性组合：{0}。 的本地化字符串。
+        ///   查找类似 Invalid attributes combination: {0}. 的本地化字符串。
         /// </summary>
         internal static string InvalidAttributesCombination {
             get {
@@ -88,11 +97,20 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
-        ///   查找类似 无法将 {0} 作为对象类型 {1} 使用。 的本地化字符串。
+        ///   查找类似 Cannot cast {0} to {1}. 的本地化字符串。
         /// </summary>
         internal static string InvalidObjectType {
             get {
                 return ResourceManager.GetString("InvalidObjectType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Type {0} has not been registered in current scope. 的本地化字符串。
+        /// </summary>
+        internal static string UnregisteredType {
+            get {
+                return ResourceManager.GetString("UnregisteredType", resourceCulture);
             }
         }
     }

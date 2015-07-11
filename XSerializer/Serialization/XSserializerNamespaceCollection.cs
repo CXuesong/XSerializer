@@ -9,7 +9,7 @@ using System.Xml.Linq;
 namespace Undefined.Serialization
 {
     /// <summary>
-    /// Represents an XML namespace prefix and its corresponding uri.
+    /// Represents an XML namespace prefix and its corresponding URI.
     /// </summary>
     public struct PrefixUriPair
     {
