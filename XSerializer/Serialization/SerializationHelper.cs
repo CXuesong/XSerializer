@@ -7,7 +7,6 @@ using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using System.Xml.Linq;
-using Undefined.Serialization;
 
 namespace Undefined.Serialization
 {
@@ -112,6 +111,31 @@ namespace Undefined.Serialization
             if (p != null) return p.GetValue(obj);
             throw new NotSupportedException();
         }
+        public static bool IsMemberReadOnly(MemberInfo member)
+        {
+            var f = member as FieldInfo;
+            if (f != null) return f.IsLiteral || f.IsInitOnly;
+            var p = member as PropertyInfo;
+            if (p != null) return p.SetMethod == null;
+            throw new NotSupportedException();
+        }
+
+        public static void SetMemberValue(MemberInfo member, object obj, object value)
+        {
+            var f = member as FieldInfo;
+            if (f != null)
+            {
+                f.SetValue(obj, value);
+                return;
+            }
+            var p = member as PropertyInfo;
+            if (p != null)
+            {
+                p.SetValue(obj, value);
+                return;
+            }
+            throw new NotSupportedException();
+        }
 
         /// <summary>
         /// 获取指定集合类型在声明时所使用的元素类型。
@@ -150,6 +174,13 @@ namespace Undefined.Serialization
                    || t == typeof (DateTime) || t == typeof (TimeSpan) || t == typeof (DateTimeOffset)
                    || t == typeof (Guid);
         }
+
+        public static MethodBase GetExplicitOperator(Type source, Type dest)
+        {
+            Debug.Assert(source != null && dest != null);
+            return source.GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .FirstOrDefault(m => m.Name == "op_Explicit" && m.ReturnType == dest);
+        }
     }
 
     /// <summary>
@@ -160,6 +191,6 @@ namespace Undefined.Serialization
     {
         string Serialize();
 
-        void Deserialize(string v);
+        void Deserialize(string s);
     }
 }

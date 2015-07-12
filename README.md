@@ -2,20 +2,22 @@
 A customizable XML serializer based on XML to LINQ.
 
 ## Features
-* Serialization
-	* Public property/field serialization. (private ones will be supported later)
-		* Including built-in simple types & its `Nullable` from.
-		* Supports property/field that uses another class as type.
-		* Supports collections that implements `IEnumerable`.
-	* Serialized collecions can have attributes.
-	* Complex classes can be converted to / back from string and stored in attributes. (By implementing `IXStringSerializable`)
-	* Attribute-controlled XML element/field generation.
-		* Opt-in member generation mode (That is, only attributed members will be serialized.)
-		* Supports "AnyElement" & "AnyAttribute".
-		* Supports custom XML name & namespace (for type / member / collecion items).
-	* ~~Multi-referenced instance serialization. ~~ (See <u>Multiple & Circular References</u>)
-	* Serialization callbacks. (Not Implemented Yet)
-* Deserialization (Uh oh… Not Implemented Yet)
+* Attribute-controlled XML element/attribute generation.
+	* Opt-in member generation mode (That is, only attributed members will be serialized.)
+	* Supports "AnyElement" & "AnyAttribute".
+	* Supports custom XML name & namespace (for type / member / collecion items).
+* Public/private property/field serialization.
+	* Including built-in simple types & their `Nullable` froms.
+	* Supports property/field that uses another class as type.
+	* Supports collections that implements `IEnumerable`.
+* Serialized collecions can have attributes.
+* Complex classes can be converted to / back from string and stored in attributes. (By implementing `IXStringSerializable`)
+* ~~Multi-referenced instance serialization. ~~ (See <u>Multiple & Circular References</u>)
+* Serialization callbacks. (Not Implemented Yet)
+* Deserialization
+	* Supports read-only property/field deserialization (in-situ deserialization),
+	as long as they return writable objects/collecions/arrays.
+	* Preliminarily supports IEnumerable / IList deserialization.
 
 ## Background
 I just want to implement the functionality of `System.Xml.Serialization.XmlSerializer` on my own. Maybe you've noticed that `XmlSerializer` enables us to create & load XML documents from & to classes, and the behaviors can be adjusted via different Attributes. Compared with DataContractSeriallizer, it can give you more control on what the XML document should look like. However, the mechanism of `XmlSerializer` is still rigid in the way that you can't gain full control on some elements / attributes, while maintain the rest of the members clean & tidy. For example, a commonly occurred problem to who use `XmlSerializer` is that, it cannot properly handle multiple references towards the same instance. Instead, the same instance is stored multiple times in XML. Hence, it also cannot handle circular references.
@@ -46,7 +48,7 @@ So, in current and later versions, just like `XmlSerializer`, **circular referen
 
 ----------
 
-Then, what else can XSerializer do? At this point, I mean, merely 2 days after I started this repos, I'm not pretty sure. But it now supports `Nullable<T>` and can handle it just like other simple types, and you can define your own rules to convert between class and string that used to store in attributes (or elements), and collections can have attributes. These features are *not* included in `System.Xml.Serialization.XmlSerializer`.
+Then, what else can XSerializer do? At this point, I mean, merely 2 days (2015-07-11) after I started this repos, I'm not pretty sure. But it now supports `Nullable<T>` and can handle it just like other simple types, and you can define your own rules to convert between class and string that used to store in attributes (or elements), and collections can have attributes. These features are *not* included in `System.Xml.Serialization.XmlSerializer`.
 
 In later versions, maybe it'll supports private members' serialization, just like `DataContractSeriallizer`, while giving you more control on what the output should look like.
 

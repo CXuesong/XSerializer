@@ -24,6 +24,15 @@ namespace Undefined.Serialization
         /// 将指定的对象序列化，并写入流中。
         /// Serialize an object and write it into a Stream.
         /// </summary>
+        public void Serialize(Stream s)
+        {
+            Serialize(s, null, (XSerializerParameters) null);
+        }
+
+        /// <summary>
+        /// 将指定的对象序列化，并写入流中。
+        /// Serialize an object and write it into a Stream.
+        /// </summary>
         public void Serialize(Stream s, object obj)
         {
             Serialize(s, obj, (XSerializerParameters) null);
@@ -76,26 +85,45 @@ namespace Undefined.Serialization
             return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root);
         }
 
-        /// <summary>
-        /// 为复数、枚举等类型提供辅助转换支持，将其转换为适合于 XML 值的字符串。
-        /// </summary>
-        /// <param name="value">要尝试进行转换的值。此值不为<c>null</c>。</param>
-        /// <returns>一个字符串，包含了反序列化此对象所需的全部信息。
-        /// 如果不能序列化为简单的字符串，则返回<c>null</c>。</returns>
-        protected virtual string GetXString(object value)
-        {
-            return SerializationHelper.ToXString(value);
-        }
+        ///// <summary>
+        ///// 为复数、枚举等类型提供辅助转换支持，将其转换为适合于 XML 值的字符串。
+        ///// </summary>
+        ///// <param name="value">要尝试进行转换的值。此值不为<c>null</c>。</param>
+        ///// <returns>一个字符串，包含了反序列化此对象所需的全部信息。
+        ///// 如果不能序列化为简单的字符串，则返回<c>null</c>。</returns>
+        //protected virtual string GetXString(object value)
+        //{
+        //    return SerializationHelper.ToXString(value);
+        //}
 
+        /// <summary>
+        /// 从指定的流中反序列化对象。
+        /// Deserialize an object from stream.
+        /// </summary>
         public object Deserialize(Stream s)
         {
-            return Deserialize(XDocument.Load(s));
+            return Deserialize(s, null);
         }
 
-        public object Deserialize(XDocument doc)
+        /// <summary>
+        /// 从指定的流中反序列化对象。
+        /// Deserialize an object from stream.
+        /// </summary>
+        public object Deserialize(Stream s, object context)
         {
-            //return DeserializeCore(doc.Root);
-            return null;
+            return Deserialize(XDocument.Load(s), context);
+        }
+
+        /// <summary>
+        /// 从指定的 XML 文档中反序列化对象。
+        /// Deserialize an object from XDocument.
+        /// </summary>
+        public object Deserialize(XDocument doc, object context)
+        {
+            if (doc == null) throw new ArgumentNullException("doc");
+            if (doc.Root == null) throw new ArgumentException(Prompts.EmptyXDocument, "doc");
+            var state = new XSerializationState(context);
+            return cache.Deserialize(doc.Root, state);
         }
 
         static XSerializer()

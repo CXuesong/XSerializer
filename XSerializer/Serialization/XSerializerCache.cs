@@ -86,7 +86,7 @@ namespace Undefined.Serialization
                 kind = TypeSerializableKind.Collection;
             else
                 kind = TypeSerializableKind.Complex;
-            var serializer = new TypeSerializer(kind);
+            var serializer = new TypeSerializer(t, kind);
             //处理引用项。
             foreach (var attr in t.GetCustomAttributes<XIncludeAttribute>())
                 GetOrDeclareSerializer(attr.Type);
@@ -101,92 +101,132 @@ namespace Undefined.Serialization
         {
             Debug.Assert(serializer != null && t != null);
             var kind = serializer.SerializableKind;
-            if (kind == TypeSerializableKind.Complex || kind == TypeSerializableKind.Collection)
+            switch (kind)
             {
-                //序列化属性/字段。
-                var bindingFlags = BindingFlags.GetProperty | BindingFlags.GetField
-                                   | BindingFlags.Public | BindingFlags.Instance;
-                {
-                    var typeAttr = t.GetCustomAttribute<XTypeAttribute>();
-                    if (typeAttr != null)
-                        bindingFlags |= BindingFlags.NonPublic;
-                }
-                foreach (var member in t.GetMembers(bindingFlags))
-                {
-                    MemberSerializer msInfo = null;
-                    //杂项元素。
-                    var anyElemAttr = member.GetCustomAttribute<XAnyElementAttribute>();
-                    if (anyElemAttr != null)
+                case TypeSerializableKind.Simple:
+                    if (t != typeof(object))
                     {
-                        if (kind == TypeSerializableKind.Collection)
-                            throw new InvalidOperationException(string.Format(
-                                Prompts.CollectionPropertyElementNotSupported, member));
-                        SerializationHelper.AssertKindOf(typeof (IEnumerable<XElement>),
-                            SerializationHelper.GetMemberValueType(member));
-                        serializer.RegisterAnyElementMember(member);
+                        serializer.RegisterXObjectCastings(
+                            SerializationHelper.GetExplicitOperator(typeof(XAttribute), t),
+                            SerializationHelper.GetExplicitOperator(typeof(XElement), t)
+                            );
                     }
-                    //杂项属性。
-                    var anyAttrAttr = member.GetCustomAttribute<XmlAnyAttributeAttribute>();
-                    if (anyAttrAttr != null)
+                    break;
+                case TypeSerializableKind.Collection:
+                case TypeSerializableKind.Complex:
+                    if (kind == TypeSerializableKind.Collection)
                     {
-                        if (anyElemAttr != null)
-                            throw new InvalidOperationException(string.Format(
-                                Prompts.InvalidAttributesCombination, member));
-                        SerializationHelper.AssertKindOf(typeof(IEnumerable<XAttribute>),
-                            SerializationHelper.GetMemberValueType(member));
-                       serializer.RegisterAnyAttributeMember(member);
-                    }
-                    //元素。
-                    var eattr = member.GetCustomAttribute<XElementAttribute>();
-                    if (eattr != null)
-                    {
-                        if (kind == TypeSerializableKind.Collection)
-                            throw new InvalidOperationException(string.Format(
-                                Prompts.CollectionPropertyElementNotSupported, member));
-                        if (anyElemAttr != null || anyAttrAttr != null)
-                            throw new InvalidOperationException(string.Format(
-                                Prompts.InvalidAttributesCombination, member));
-                        msInfo = serializer.RegisterMember(SerializationHelper.GetName(member, eattr), member, false);
-                    }
-                    //属性。
-                    var aattr = member.GetCustomAttribute<XAttributeAttribute>();
-                    if (aattr != null)
-                    {
-                        if (eattr != null || anyElemAttr != null || anyAttrAttr != null)
-                            throw new InvalidOperationException(string.Format(
-                                Prompts.InvalidAttributesCombination, member));
-                        msInfo = serializer.RegisterMember(SerializationHelper.GetName(member, aattr), member, true);
-                    }
-                    if (msInfo != null)
-                    {
-                        //注册返回类型。
-                        var vType = SerializationHelper.GetMemberValueType(member);
-                        var vSeri = GetOrDeclareSerializer(vType);
-                        msInfo.RegisterValueSerializer(vSeri.Serializer);
-                        if (vSeri.Serializer.SerializableKind == TypeSerializableKind.Collection)
+                        if (t.IsArray)
                         {
-                            // IEnumerable<T> => T
-                            var viType = SerializationHelper.GetCollectionItemType(vType);
-                            var viTypeRegistered = false;
-                            var childTypes = new ScopedTypeCollection(member + " (" + member.DeclaringType + ")");
-                            foreach (var colAttr in member.GetCustomAttributes<XCollectionItemAttribute>())
-                            {
-                                var thisType = colAttr.Type ?? viType;
-                                var thisSS = GetOrDeclareSerializer(thisType);
-                                childTypes.Register(colAttr.GetName(thisSS.Name), thisType, thisSS.Serializer);
-                                //当前注册的就是基类类型。
-                                if (thisType == viType) viTypeRegistered = true;
-                            }
-                            //确保基类类型被注册。
-                            if (!viTypeRegistered)
-                            {
-                                var viSS = GetOrDeclareSerializer(viType);
-                                childTypes.Register(viSS.Name, viType, viSS.Serializer);
-                            }
-                            msInfo.RegisterChildItemTypes(childTypes);
+                            serializer.RegisterAddItemMethod(null);
+                        }
+                        else if (typeof(IList).IsAssignableFrom(t))
+                        {
+                            var map = t.GetInterfaceMap(typeof(IList));
+                            var addMethodIndex = Array.FindIndex(map.InterfaceMethods, m => m.Name == "Add");
+                            Debug.Assert(addMethodIndex >= 0);
+                            serializer.RegisterAddItemMethod(map.TargetMethods[addMethodIndex]);
+                        }
+                        else
+                        {
+                            // search for public Add function
+                            // bug : cannot get "Add" method for IList<T>
+                            var addMethod = t.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                                .FirstOrDefault(m =>
+                                {
+                                    if (m.Name != "Add") return false;
+                                    var p = m.GetParameters();
+                                    if (p.Length != 1) return false;
+                                    return p[0].IsIn && p[0].ParameterType.IsAssignableFrom(t);
+                                });
+                            serializer.RegisterAddItemMethod(addMethod);
                         }
                     }
-                }
+                    //序列化属性/字段。
+                    var bindingFlags = BindingFlags.GetProperty | BindingFlags.GetField
+                                       | BindingFlags.Public | BindingFlags.Instance;
+                    {
+                        var typeAttr = t.GetCustomAttribute<XTypeAttribute>();
+                        if (typeAttr != null)
+                            bindingFlags |= BindingFlags.NonPublic;
+                    }
+                    foreach (var member in t.GetMembers(bindingFlags))
+                    {
+                        MemberSerializer msInfo = null;
+                        //杂项元素。
+                        var anyElemAttr = member.GetCustomAttribute<XAnyElementAttribute>();
+                        if (anyElemAttr != null)
+                        {
+                            if (kind == TypeSerializableKind.Collection)
+                                throw new InvalidOperationException(string.Format(
+                                    Prompts.CollectionPropertyElementNotSupported, member));
+                            SerializationHelper.AssertKindOf(typeof(IEnumerable<XElement>),
+                                SerializationHelper.GetMemberValueType(member));
+                            serializer.RegisterAnyElementMember(member);
+                        }
+                        //杂项属性。
+                        var anyAttrAttr = member.GetCustomAttribute<XmlAnyAttributeAttribute>();
+                        if (anyAttrAttr != null)
+                        {
+                            if (anyElemAttr != null)
+                                throw new InvalidOperationException(string.Format(
+                                    Prompts.InvalidAttributesCombination, member));
+                            SerializationHelper.AssertKindOf(typeof(IEnumerable<XAttribute>),
+                                SerializationHelper.GetMemberValueType(member));
+                            serializer.RegisterAnyAttributeMember(member);
+                        }
+                        //元素。
+                        var eattr = member.GetCustomAttribute<XElementAttribute>();
+                        if (eattr != null)
+                        {
+                            if (kind == TypeSerializableKind.Collection)
+                                throw new InvalidOperationException(string.Format(
+                                    Prompts.CollectionPropertyElementNotSupported, member));
+                            if (anyElemAttr != null || anyAttrAttr != null)
+                                throw new InvalidOperationException(string.Format(
+                                    Prompts.InvalidAttributesCombination, member));
+                            msInfo = serializer.RegisterMember(SerializationHelper.GetName(member, eattr), member, false);
+                        }
+                        //属性。
+                        var aattr = member.GetCustomAttribute<XAttributeAttribute>();
+                        if (aattr != null)
+                        {
+                            if (eattr != null || anyElemAttr != null || anyAttrAttr != null)
+                                throw new InvalidOperationException(string.Format(
+                                    Prompts.InvalidAttributesCombination, member));
+                            msInfo = serializer.RegisterMember(SerializationHelper.GetName(member, aattr), member, true);
+                        }
+                        if (msInfo != null)
+                        {
+                            //注册返回类型。
+                            var vType = SerializationHelper.GetMemberValueType(member);
+                            var vSeri = GetOrDeclareSerializer(vType);
+                            msInfo.RegisterValueSerializer(vSeri.Serializer);
+                            if (vSeri.Serializer.SerializableKind == TypeSerializableKind.Collection)
+                            {
+                                // IEnumerable<T> => T
+                                var viType = SerializationHelper.GetCollectionItemType(vType);
+                                var viTypeRegistered = false;
+                                var childTypes = new ScopedTypeCollection(member + " (" + member.DeclaringType + ")");
+                                foreach (var colAttr in member.GetCustomAttributes<XCollectionItemAttribute>())
+                                {
+                                    var thisType = colAttr.Type ?? viType;
+                                    var thisSS = GetOrDeclareSerializer(thisType);
+                                    childTypes.Register(colAttr.GetName(thisSS.Name), thisType, thisSS.Serializer);
+                                    //当前注册的就是基类类型。
+                                    if (thisType == viType) viTypeRegistered = true;
+                                }
+                                //确保基类类型被注册。
+                                if (!viTypeRegistered)
+                                {
+                                    var viSS = GetOrDeclareSerializer(viType);
+                                    childTypes.Register(viSS.Name, viType, viSS.Serializer);
+                                }
+                                msInfo.RegisterChildItemTypes(childTypes);
+                            }
+                        }
+                    }
+                    break;
             }
         }
 
@@ -214,6 +254,14 @@ namespace Undefined.Serialization
             return s.Serializer.SerializeXElement(rootName ?? s.Name, obj, null, state);
         }
 
+        public object Deserialize(XElement e, XSerializationState state)
+        {
+            if (e == null) throw new ArgumentNullException("e");
+            var s = registeredTypes.GetSerializer(rootType);
+            var obj = s.Serializer.Deserialize(e, null, state);
+            Debug.Assert(rootType.IsInstanceOfType(obj));
+            return obj;
+        }
     }
 
     internal enum TypeSerializableKind
@@ -254,10 +302,18 @@ namespace Undefined.Serialization
     {
         private TypeSerializableKind _SerializableKind;
         //private XName _Name;
-        //private Type _Type;
+        private Type _Type;
         private Dictionary<XName, MemberSerializer> nameMemberDict = new Dictionary<XName, MemberSerializer>();
+        // Complex / Collection
         private MemberInfo anyAttributeMember;
+        // Complex
         private MemberInfo anyElementMember;
+        // Collection
+        private MethodBase addItemMethod;
+        // Simple
+        private MethodBase xElementExplicitOperator;
+        private MethodBase xAttributeExplicitOperator;
+
 
         public TypeSerializableKind SerializableKind
         {
@@ -281,8 +337,26 @@ namespace Undefined.Serialization
             anyElementMember = member;
         }
 
-        public TypeSerializer(TypeSerializableKind serializableKind)
+        /// <summary>
+        /// (Of simple types) Register explicit conversion operators
+        /// used to convert XObject to corresponding value.
+        /// </summary>
+        public void RegisterXObjectCastings(MethodBase attr, MethodBase elem)
         {
+            Debug.Assert(attr != null && elem != null);
+            xAttributeExplicitOperator = attr;
+            xElementExplicitOperator = elem;
+        }
+
+        public void RegisterAddItemMethod(MethodBase member)
+        {
+            // null : 集合无法添加项目。
+            addItemMethod = member;
+        }
+
+        public TypeSerializer(Type type, TypeSerializableKind serializableKind)
+        {
+            _Type = type;
             _SerializableKind = serializableKind;
         }
 
@@ -321,9 +395,7 @@ namespace Undefined.Serialization
                     return new XElement(name, obj);
                 case TypeSerializableKind.XStringSerializable:
                     var xstr = ((IXStringSerializable)obj).Serialize();
-                    if (xstr != null) return new XElement(name, xstr);
-                    return null;
-                //序列化复杂类型。
+                    return xstr != null ? new XElement(name, xstr) : null;
                 case TypeSerializableKind.Collection:
                 case TypeSerializableKind.Complex:
                     var element = new XElement(name);
@@ -331,17 +403,13 @@ namespace Undefined.Serialization
                     if (anyAttributeMember != null)
                     {
                         foreach (var attr in (IEnumerable)SerializationHelper.GetMemberValue(anyAttributeMember, obj))
-                        {
                             element.Add(attr);
-                        }
                     }
                     if (anyElementMember != null)
                     {
                         Debug.Assert(_SerializableKind != TypeSerializableKind.Collection);
                         foreach (var elem in (IEnumerable)SerializationHelper.GetMemberValue(anyElementMember, obj))
-                        {
                             element.Add(elem);
-                        }
                     }
                     //循环引用检测。
                     state.EnterObjectSerialization(obj);
@@ -351,7 +419,7 @@ namespace Undefined.Serialization
                         if (_SerializableKind == TypeSerializableKind.Collection)
                         {
                             //忽略掉为 null 的项目
-                            foreach (var item in (IEnumerable) obj)
+                            foreach (var item in (IEnumerable)obj)
                             {
                                 if (item == null) continue;
                                 var itemSS = childItemTypes.GetSerializer(item.GetType());
@@ -359,21 +427,196 @@ namespace Undefined.Serialization
                             }
                         }
                         //成员。
+                        //注意 Add 函数允许 null 输入。
                         foreach (var entry in nameMemberDict)
-                        {
-                            //注意 Add 函数允许 null 输入。
                             element.Add(entry.Value.Serialize(obj, state));
-                        }
                     }
                     finally
                     {
                         state.ExitObjectSerialization(obj);
                     }
-                    return element; 
+                    return element;
             }
             Debug.Assert(false);
             return null;
         }
+
+        private MemberSerializer TryGetSerializer(XName name)
+        {
+            MemberSerializer s;
+            if (nameMemberDict.TryGetValue(name, out s))
+                return s;
+            return null;
+        }
+
+        internal object Deserialize(XObject elementOrAttribute, ScopedTypeCollection childItemTypes, XSerializationState state)
+        {
+            Debug.Assert(elementOrAttribute is XElement || elementOrAttribute is XAttribute);
+            switch (_SerializableKind)
+            {
+                case TypeSerializableKind.Simple:
+                    if (_Type == typeof(object)) return new object();
+                    if (elementOrAttribute is XAttribute)
+                        return xAttributeExplicitOperator.Invoke(null, new object[] { elementOrAttribute });
+                    return xElementExplicitOperator.Invoke(null, new object[] { elementOrAttribute });
+                case TypeSerializableKind.XStringSerializable:
+                    var attr = elementOrAttribute as XAttribute;
+                    var str = attr != null
+                        ? attr.Value
+                        : ((XElement)elementOrAttribute).Value;
+                    var xss = (IXStringSerializable)Activator.CreateInstance(_Type);
+                    xss.Deserialize(str);
+                    return xss;
+                case TypeSerializableKind.Collection:
+                case TypeSerializableKind.Complex:
+                    object obj = null;
+                    var element = (XElement)elementOrAttribute;
+                    //集合。
+                    if (_SerializableKind == TypeSerializableKind.Collection)
+                    {
+                        if (addItemMethod != null)
+                        {
+                            obj = Activator.CreateInstance(_Type);
+                            InPlaceDeserialize(obj, elementOrAttribute, childItemTypes, state);
+                        }
+                        else
+                        {
+                            var itemType = SerializationHelper.GetCollectionItemType(_Type);
+                            if (_Type.IsArray || _Type.IsInterface)
+                            {
+                                var surrogateType = typeof(List<>).MakeGenericType(itemType);
+                                if (_Type.IsInterface)
+                                    SerializationHelper.AssertKindOf(_Type, surrogateType);
+                                // 需要进行代理。
+                                var surrogateCollection = (IList)Activator.CreateInstance(surrogateType);
+                                foreach (var item in element.Elements())
+                                {
+                                    var ts = childItemTypes.GetSerializer(item.Name);
+                                    var itemObj = ts.Serializer.Deserialize(item, null, state);
+                                    surrogateCollection.Add(itemObj);
+                                }
+                                if (_Type.IsArray)
+                                {
+                                    var array = Array.CreateInstance(itemType, surrogateCollection.Count);
+                                    surrogateCollection.CopyTo(array, 0);
+                                    obj = array;
+                                }
+                                else
+                                {
+                                    obj = surrogateCollection;
+                                }
+                            }
+                            else
+                            {
+                                throw new NotSupportedException(string.Format(Prompts.CollectionCannotAddItem, _Type));
+                                //obj = Activator.CreateInstance(_Type);
+                                //var list = obj as IList;
+                                //if (list != null && list.IsReadOnly) goto SURROGATE;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        obj = Activator.CreateInstance(_Type);
+                        //成员。
+                        var anyElements = new List<XElement>();
+                        foreach (var item in element.Elements())
+                        {
+                            var s = TryGetSerializer(item.Name);
+                            if (s != null)
+                                s.Deserialize(obj, item, state);
+                            else
+                                anyElements.Add(item);
+                        }
+                        if (anyElementMember != null)
+                        {
+                            SerializationHelper.SetMemberValue(anyElementMember, obj,
+                                anyElements.Select(e => new XElement(e)).ToArray());
+                        }
+                    }
+                    return obj;
+            }
+            Debug.Assert(false);
+            return null;
+        }
+
+        internal bool SupportsInPlaceDeserialize(object currentValue)
+        {
+            switch (_SerializableKind)
+            {
+                case TypeSerializableKind.XStringSerializable:
+                case TypeSerializableKind.Simple:
+                    return false;
+                case TypeSerializableKind.Complex:
+                    return !_Type.IsValueType;
+                case TypeSerializableKind.Collection:
+                    if (addItemMethod == null) return false;
+                    var list = currentValue as IList;
+                    if (list != null) return !list.IsReadOnly;
+                    return true;
+            }
+            Debug.Assert(false);
+            return false;
+        }
+
+        internal object InPlaceDeserialize(object currentValue, XObject elementOrAttribute,
+            ScopedTypeCollection childItemTypes,
+            XSerializationState state)
+        {
+            Debug.Assert(currentValue != null);
+            Debug.Assert(_SerializableKind == TypeSerializableKind.Collection ||
+                         _SerializableKind == TypeSerializableKind.Complex);
+            Debug.Assert(elementOrAttribute is XElement || elementOrAttribute is XAttribute);
+            var element = (XElement)elementOrAttribute;
+            //集合。
+            if (_SerializableKind == TypeSerializableKind.Collection)
+            {
+                var itemType = SerializationHelper.GetCollectionItemType(_Type);
+                Debug.Assert(addItemMethod != null);
+                foreach (var item in element.Elements())
+                {
+                    var ts = childItemTypes.GetSerializer(item.Name);
+                    var itemObj = ts.Serializer.Deserialize(item, null, state);
+                    addItemMethod.Invoke(currentValue, new[] { itemObj });
+                }
+            }
+            else
+            {
+                currentValue = Activator.CreateInstance(_Type);
+                //成员。
+                var anyElements = new List<XElement>();
+                foreach (var item in element.Elements())
+                {
+                    var s = TryGetSerializer(item.Name);
+                    if (s != null)
+                        s.Deserialize(currentValue, item, state);
+                    else
+                        anyElements.Add(item);
+                }
+                if (anyElementMember != null)
+                {
+                    SerializationHelper.SetMemberValue(anyElementMember, currentValue,
+                        anyElements.Select(e => new XElement(e)).ToArray());
+                }
+            }
+            //成员。
+            var anyAttributes = new List<XAttribute>();
+            foreach (var item in element.Attributes())
+            {
+                var s = TryGetSerializer(item.Name);
+                if (s != null)
+                    s.Deserialize(currentValue, item, state);
+                else
+                    anyAttributes.Add(item);
+            }
+            if (anyAttributeMember != null)
+            {
+                SerializationHelper.SetMemberValue(anyAttributeMember, currentValue,
+                    anyAttributes.Select(a => new XAttribute(a)).ToArray());
+            }
+            return currentValue;
+        }
+
         #endregion
     }
 
@@ -448,6 +691,24 @@ namespace Undefined.Serialization
             if (_IsAttribute)
                 return _ValueSerializer.SerializeXAttribute(_Name, v, state);
             return _ValueSerializer.SerializeXElement(_Name, v, _RegisteredChildTypes, state);
+        }
+
+        internal void Deserialize(object obj, XObject value, XSerializationState state)
+        {
+            Debug.Assert(_IsAttribute ? value is XAttribute : value is XElement);
+            if (SerializationHelper.IsMemberReadOnly(_MemberInfo))
+            {
+                var v = SerializationHelper.GetMemberValue(_MemberInfo, obj);
+                if (!_ValueSerializer.SupportsInPlaceDeserialize(v))
+                    throw new NotSupportedException(string.Format(Prompts.InSituDeserializationNotSupported,
+                        _MemberInfo + " (" + _MemberInfo.DeclaringType + ")", v));
+                _ValueSerializer.InPlaceDeserialize(v, value, _RegisteredChildTypes, state);
+            }
+            else
+            {
+                var v = _ValueSerializer.Deserialize(value, _RegisteredChildTypes, state);
+                SerializationHelper.SetMemberValue(_MemberInfo, obj, v);
+            }
         }
     }
 
@@ -534,7 +795,7 @@ namespace Undefined.Serialization
             }
             catch (KeyNotFoundException ex)
             { }
-            EXCEPTION:
+        EXCEPTION:
             throw new NotSupportedException(string.Format(Prompts.UnregisteredType, name, scopeName));
         }
 

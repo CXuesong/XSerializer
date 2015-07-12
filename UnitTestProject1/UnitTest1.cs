@@ -49,7 +49,7 @@ namespace UnitTestProject1
         [XElement(null, MyUri1)]
         public MyObject1 AnotherObject;
 
-        private string[] _Array1{get; set; }
+        private string[] Array2 {get; set; }
     }
 
     [TestClass]
@@ -77,14 +77,35 @@ namespace UnitTestProject1
             //There are intentional spaces left in the strings.
             obj.List1.Add("越过长城，走向世界。    ");
             obj.List1.Add("\t\tAcross the Great Wall we can reach every corner in the world.");
-            Trace.WriteLine(s.GetSerializedDocument(obj, p));
+            var doc = s.GetSerializedDocument(obj, p);
+            Trace.WriteLine(doc);
+            var obj1 = (MyObject1) s.Deserialize(doc, null);
+            Assert.AreEqual(obj.Property1, obj1.Property1);
+            Assert.AreEqual(obj.Property1, obj1.Property1);
+            Assert.AreEqual(obj.List1.Count, obj1.List1.Count);
+            Assert.AreEqual(obj.List1[0], obj1.List1[0]);
+            Assert.AreEqual(obj.List1[1], obj1.List1[1]);
+            Assert.AreEqual(obj.Array1.Length, obj1.Array1.Length);
+            // Profiling
+            for (var i = 0; i < obj.Array1.Length; i++)
+            {
+                if (!(obj.Array1[i] is MyObject1))
+                    Assert.AreEqual(obj.Array1[i], obj1.Array1[i]);
+            }
             var sw = Stopwatch.StartNew();
             for (int i = 0; i < repetitions; i++)
             {
                 // ReSharper disable once ReturnValueOfPureMethodIsNotUsed
                 s.GetSerializedDocument(obj, p).ToString();
             }
-            Trace.Write("Elapsed ms : ");
+            Trace.Write("Serialization elapsed ms : ");
+            Trace.WriteLine(sw.Elapsed.TotalMilliseconds / repetitions);
+            sw.Restart();
+            for (int i = 0; i < repetitions; i++)
+            {
+                s.Deserialize(doc, null);
+            }
+            Trace.Write("Deserialization elapsed ms : ");
             Trace.WriteLine(sw.Elapsed.TotalMilliseconds / repetitions);
         }
 

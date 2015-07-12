@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Undefined.Serialization;
 
@@ -48,7 +49,17 @@ namespace UnitTestProject1
             obj.CompositeArray.Add("Hello, world!");
             obj.CompositeArray.Add(12345.67e89);
             obj.CompositeArray.Add(new SimpleObject { Title = "Child Object" });
-            Trace.WriteLine(s.GetSerializedDocument(obj));
+            var doc = s.GetSerializedDocument(obj);
+            Trace.WriteLine(doc);
+            var obj1 = (SimpleObject)s.Deserialize(doc, null);
+            Assert.AreEqual(obj.Title, obj1.Title);
+            Assert.AreEqual(obj.Time, obj1.Time);
+            Assert.AreEqual(obj.CompositeArray.Count, obj1.CompositeArray.Count);
+            for (var i = 0; i < obj.CompositeArray.Count; i++)
+            {
+                if (!(obj.CompositeArray[i] is SimpleObject))
+                    Assert.AreEqual(obj.CompositeArray[i], obj1.CompositeArray[i]);
+            }
         }
 
         [TestMethod]

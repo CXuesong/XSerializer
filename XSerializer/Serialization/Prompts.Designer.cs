@@ -79,11 +79,38 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
+        ///   查找类似 Cannot add item to {0} . 的本地化字符串。
+        /// </summary>
+        internal static string CollectionCannotAddItem {
+            get {
+                return ResourceManager.GetString("CollectionCannotAddItem", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Cannot serialize {0} as an element in collection type. 的本地化字符串。
         /// </summary>
         internal static string CollectionPropertyElementNotSupported {
             get {
                 return ResourceManager.GetString("CollectionPropertyElementNotSupported", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Specified XDocument has no root element. 的本地化字符串。
+        /// </summary>
+        internal static string EmptyXDocument {
+            get {
+                return ResourceManager.GetString("EmptyXDocument", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 In situ deserialization is not supported for member {0} with value {1}. 的本地化字符串。
+        /// </summary>
+        internal static string InSituDeserializationNotSupported {
+            get {
+                return ResourceManager.GetString("InSituDeserializationNotSupported", resourceCulture);
             }
         }
         
@@ -102,6 +129,24 @@ namespace Undefined.Serialization {
         internal static string InvalidObjectType {
             get {
                 return ResourceManager.GetString("InvalidObjectType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cannot deserialize readonly structure. 的本地化字符串。
+        /// </summary>
+        internal static string StrcutureReadonly {
+            get {
+                return ResourceManager.GetString("StrcutureReadonly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   查找类似 Cannot deserialize {0}。 的本地化字符串。
+        /// </summary>
+        internal static string UnableToDeserialize {
+            get {
+                return ResourceManager.GetString("UnableToDeserialize", resourceCulture);
             }
         }
         

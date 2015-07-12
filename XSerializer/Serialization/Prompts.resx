@@ -123,14 +123,29 @@
   <data name="CircularReferenceDetected" xml:space="preserve">
     <value>A circular reference of {0} has been detected.</value>
   </data>
+  <data name="CollectionCannotAddItem" xml:space="preserve">
+    <value>Cannot add item to {0} .</value>
+  </data>
   <data name="CollectionPropertyElementNotSupported" xml:space="preserve">
     <value>Cannot serialize {0} as an element in collection type.</value>
+  </data>
+  <data name="EmptyXDocument" xml:space="preserve">
+    <value>Specified XDocument has no root element.</value>
+  </data>
+  <data name="InSituDeserializationNotSupported" xml:space="preserve">
+    <value>In situ deserialization is not supported for member {0} with value {1}.</value>
   </data>
   <data name="InvalidAttributesCombination" xml:space="preserve">
     <value>Invalid attributes combination: {0}.</value>
   </data>
   <data name="InvalidObjectType" xml:space="preserve">
     <value>Cannot cast {0} to {1}.</value>
+  </data>
+  <data name="StrcutureReadonly" xml:space="preserve">
+    <value>Cannot deserialize readonly structure.</value>
+  </data>
+  <data name="UnableToDeserialize" xml:space="preserve">
+    <value>Cannot deserialize {0}。</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
     <value>Type {0} has not been registered in scope: {0}.</value>

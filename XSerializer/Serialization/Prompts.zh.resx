@@ -123,14 +123,29 @@
   <data name="CircularReferenceDetected" xml:space="preserve">
     <value>检测到了 {0} 的循环引用。</value>
   </data>
+  <data name="CollectionCannotAddItem" xml:space="preserve">
+    <value>集合 {0} 无法添加项目。</value>
+  </data>
   <data name="CollectionPropertyElementNotSupported" xml:space="preserve">
     <value>无法以元素的形式保存集合对象的属性：{0}。</value>
+  </data>
+  <data name="EmptyXDocument" xml:space="preserve">
+    <value>指定的 XDocument 没有根节点。</value>
+  </data>
+  <data name="InSituDeserializationNotSupported" xml:space="preserve">
+    <value>成员 {0} 不支持就地反序列化。目前其值为：{1}。</value>
   </data>
   <data name="InvalidAttributesCombination" xml:space="preserve">
     <value>无效的特性组合：{0}。</value>
   </data>
   <data name="InvalidObjectType" xml:space="preserve">
     <value>无法将 {0} 作为对象类型 {1} 使用。</value>
+  </data>
+  <data name="StrcutureReadonly" xml:space="preserve">
+    <value>无法反序列化只读结构体。</value>
+  </data>
+  <data name="UnableToDeserialize" xml:space="preserve">
+    <value>无法反序列化 {0}。</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
     <value>在作用域“{1}”内未注册类型：{0}。</value>
