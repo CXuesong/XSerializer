@@ -1,6 +1,22 @@
 # XSerializer
 A customizable XML serializer based on XML to LINQ.
 
+## Features
+* Serialization
+	* Public property/field serialization. (private ones will be supported later)
+		* Including built-in simple types & its `Nullable` from.
+		* Supports property/field that uses another class as type.
+		* Supports collections that implements `IEnumerable`.
+	* Serialized collecions can have attributes.
+	* Complex classes can be converted to / back from string and stored in attributes. (By implementing `IXStringSerializable`)
+	* Attribute-controlled XML element/field generation.
+		* Opt-in member generation mode (That is, only attributed members will be serialized.)
+		* Supports "AnyElement" & "AnyAttribute".
+		* Supports custom XML name & namespace (for type / member / collecion items).
+	* ~~Multi-referenced instance serialization. ~~ (See <u>Multiple & Circular References</u>)
+	* Serialization callbacks. (Not Implemented Yet)
+* Deserialization (Uh oh… Not Implemented Yet)
+
 ## Background
 I just want to implement the functionality of `System.Xml.Serialization.XmlSerializer` on my own. Maybe you've noticed that `XmlSerializer` enables us to create & load XML documents from & to classes, and the behaviors can be adjusted via different Attributes. Compared with DataContractSeriallizer, it can give you more control on what the XML document should look like. However, the mechanism of `XmlSerializer` is still rigid in the way that you can't gain full control on some elements / attributes, while maintain the rest of the members clean & tidy. For example, a commonly occurred problem to who use `XmlSerializer` is that, it cannot properly handle multiple references towards the same instance. Instead, the same instance is stored multiple times in XML. Hence, it also cannot handle circular references.
 
@@ -14,28 +30,12 @@ Also `XmlSerializer` cannot provide extra information during the serialization p
 
 So… I'm going to implement a serializer on my own.
 
-## Features
-* Serialization
-	* Public property/field serialization.
-		* Including built-in simple types & its `Nullable` from.
-		* Supports property/field that uses another class as type.
-		* Supports collections that implements `IEnumerable`.
-		* Supports "AnyElement" & "AnyAttribute".
-		* Supports custom XML name & namespace (for type / member / collecion items).
-		* Serialized collecions can have attributes.
-		* Complex classes can be converted to / back from string and stored in attributes. (By implementing `IXStringSerializable`)
-	* Attribute-controlled XML element/field generation.
-		* Opt-in member generation mode (That is, only attributed members will be serialized.)
-	* ~~Multi-referenced instance serialization. ~~ (See <u>Circular References</u>)
-	* Serialization callbacks. (Not Implemented Yet)
-* Deserialization (Uh oh… Not Implemented Yet)
-
 ## Some Details
 Now I only expect to implement these features ASAP, so I use XML to LINQ, which simplifies the process of XML.
 
 I also use reflection to access members, which in future, may be switched to some more efficient ways, like dynamically-generated assemblies or something.
 
-### Circular References
+### Multiple & Circular References
 I've considered this lately, and now reached to the idea that, the classes that is to be used as DOM representation of XML **should not** contain such references. I mean, these classes is only used as a proxy for us to **access XML elements & attributes** more easily, and it's obvious that such references cannot be represented directly in XML element tree. Instead, we should use something like Primary Key and Foreign Key to connect the objects together, and I suggest that these keys be declared explicitly in your DOM classes.
 
 As for `DataContractSeriallizer`, the main purpose of this class is to transfer an object across certain boundaries like application ones and network ones, in which case, what the XML look like doesn't really matter, and certainly, `DataContractSeriallizer` will take care of circular references with its own representation (`z:Id` and `z:Ref`).

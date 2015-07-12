@@ -155,12 +155,19 @@ namespace Undefined.Serialization
     }
 
     /// <summary>
-    /// 为指定的类型提供默认的 XML 完全限定名。
-    /// Specifies the XML qualified name for the class or structure.
+    /// 控制指定的类型在序列化时的 XML 名称和行为。
+    /// Specifies the XML qualified name & behavior for the class or structure.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false)]
     public class XTypeAttribute : XNamedAttributeBase
     {
+
+        /// <summary>
+        /// 指示序列化时是否应当检查此类型的私有成员。
+        /// Specifies whether to check private members in the attributed type while serializing.
+        /// </summary>
+        public bool IncludePrivateMembers { get; set; }
+
         public XTypeAttribute()
         { }
 

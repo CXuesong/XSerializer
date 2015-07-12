@@ -133,6 +133,6 @@
     <value>无法将 {0} 作为对象类型 {1} 使用。</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
-    <value>在当期作用域内未注册类型：{0}。</value>
+    <value>在作用域“{1}”内未注册类型：{0}。</value>
   </data>
 </root>

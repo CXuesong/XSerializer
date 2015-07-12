@@ -133,6 +133,6 @@
     <value>Cannot cast {0} to {1}.</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
-    <value>Type {0} has not been registered in current scope.</value>
+    <value>Type {0} has not been registered in scope: {0}.</value>
   </data>
 </root>

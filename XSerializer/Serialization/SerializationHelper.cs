@@ -143,12 +143,12 @@ namespace Undefined.Serialization
             //对于 Nullable 的处理。
             if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>))
                 return IsSimpleType(t.GenericTypeArguments[0]);
-            return t == typeof(String) || t == typeof(Byte) || t == typeof(SByte)
-                   || t == typeof(Int16) || t == typeof(UInt16) || t == typeof(Int32) || t == typeof(UInt32)
-                   || t == typeof(Int64) || t == typeof(UInt64) || t == typeof(Single) || t == typeof(Double)
-                   || t == typeof(IntPtr) || t == typeof(UIntPtr)
-                   || t == typeof(DateTime) || t == typeof(TimeSpan) || t == typeof(DateTimeOffset)
-                   || t == typeof(Guid);
+            return t == typeof (Object) || t == typeof (String) || t == typeof (Byte) || t == typeof (SByte)
+                   || t == typeof (Int16) || t == typeof (UInt16) || t == typeof (Int32) || t == typeof (UInt32)
+                   || t == typeof (Int64) || t == typeof (UInt64) || t == typeof (Single) || t == typeof (Double)
+                   || t == typeof (IntPtr) || t == typeof (UIntPtr)
+                   || t == typeof (DateTime) || t == typeof (TimeSpan) || t == typeof (DateTimeOffset)
+                   || t == typeof (Guid);
         }
     }
 

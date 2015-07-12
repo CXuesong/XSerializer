@@ -48,6 +48,7 @@ namespace Undefined.Serialization
 
         /// <summary>
         /// Declares that an reference-type object is to be serialized.
+        /// This method is used to check circular reference.
         /// </summary>
         public void EnterObjectSerialization(object obj)
         {

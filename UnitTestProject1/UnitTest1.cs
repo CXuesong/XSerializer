@@ -64,7 +64,7 @@ namespace UnitTestProject1
             var p = new XSerializerParameters(ns);
             var obj = new MyObject1()
             {
-                Property1 = 123e45,
+                Property1 = 123e45d,
                 Array1 = new object[]
                 {
                     "abc",

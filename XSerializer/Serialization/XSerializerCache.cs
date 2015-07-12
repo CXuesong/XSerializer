@@ -27,7 +27,7 @@ namespace Undefined.Serialization
     /// </summary>
     internal class XSerializerCache
     {
-        private ScopedTypeCollection registeredTypes = new ScopedTypeCollection();
+        private ScopedTypeCollection registeredTypes = new ScopedTypeCollection("global");
         private Type rootType;
         private XName rootName;
 
@@ -69,16 +69,31 @@ namespace Undefined.Serialization
             return s;
         }
 
-        public XElement Serialize(object obj, XSerializationState state)
+        #region 可序列化类型的注册 | Declaration & Implementation of Type Serializers
+        private ScopedTypeSerializer GetOrDeclareSerializer(Type t)
         {
-            if (obj == null) throw new ArgumentNullException("obj");
-            Debug.Assert(rootType != null);
-            if (!rootType.IsInstanceOfType(obj))
-                throw new InvalidCastException(string.Format(Prompts.InvalidObjectType, obj.GetType(), rootType));
-            var s = registeredTypes.GetSerializer(obj.GetType());
-            return s.Serializer.SerializeXElement(rootName ?? s.Name, obj, null, state);
+            Debug.Assert(t != null);
+            var s = registeredTypes.GetSerializer(t, true);
+            if (s != null) return s;
+            //准备声明 ScopedTypeSerializer
+            var name = SerializationHelper.GetName(t);
+            TypeSerializableKind kind;
+            if (SerializationHelper.IsSimpleType(t))
+                kind = TypeSerializableKind.Simple;
+            else if (typeof(IXStringSerializable).IsAssignableFrom(t))
+                kind = TypeSerializableKind.XStringSerializable;
+            else if (typeof(IEnumerable).IsAssignableFrom(t))
+                kind = TypeSerializableKind.Collection;
+            else
+                kind = TypeSerializableKind.Complex;
+            var serializer = new TypeSerializer(kind);
+            //处理引用项。
+            foreach (var attr in t.GetCustomAttributes<XIncludeAttribute>())
+                GetOrDeclareSerializer(attr.Type);
+            //此时此类型已经声明了。
+            serializerDecls.Push(new SerializerDeclaration(t, serializer));
+            return registeredTypes.Register(name, t, serializer);
         }
-
         /// <summary>
         /// Scan the specified type and build TypeSerializer for incoming serialzation.
         /// </summary>
@@ -88,11 +103,17 @@ namespace Undefined.Serialization
             var kind = serializer.SerializableKind;
             if (kind == TypeSerializableKind.Complex || kind == TypeSerializableKind.Collection)
             {
-                MemberSerializer msInfo = null;
                 //序列化属性/字段。
-                foreach (var member in t.GetMembers(BindingFlags.GetProperty | BindingFlags.GetField
-                    | BindingFlags.Public | BindingFlags.Instance))
+                var bindingFlags = BindingFlags.GetProperty | BindingFlags.GetField
+                                   | BindingFlags.Public | BindingFlags.Instance;
                 {
+                    var typeAttr = t.GetCustomAttribute<XTypeAttribute>();
+                    if (typeAttr != null)
+                        bindingFlags |= BindingFlags.NonPublic;
+                }
+                foreach (var member in t.GetMembers(bindingFlags))
+                {
+                    MemberSerializer msInfo = null;
                     //杂项元素。
                     var anyElemAttr = member.GetCustomAttribute<XAnyElementAttribute>();
                     if (anyElemAttr != null)
@@ -147,7 +168,7 @@ namespace Undefined.Serialization
                             // IEnumerable<T> => T
                             var viType = SerializationHelper.GetCollectionItemType(vType);
                             var viTypeRegistered = false;
-                            var childTypes = new ScopedTypeCollection();
+                            var childTypes = new ScopedTypeCollection(member + " (" + member.DeclaringType + ")");
                             foreach (var colAttr in member.GetCustomAttributes<XCollectionItemAttribute>())
                             {
                                 var thisType = colAttr.Type ?? viType;
@@ -181,30 +202,18 @@ namespace Undefined.Serialization
         }
         private Stack<SerializerDeclaration> serializerDecls = new Stack<SerializerDeclaration>();
 
-        private ScopedTypeSerializer GetOrDeclareSerializer(Type t)
+        #endregion
+
+        public XElement Serialize(object obj, XSerializationState state)
         {
-            Debug.Assert(t != null);
-            var s = registeredTypes.GetSerializer(t, true);
-            if (s != null) return s;
-            //准备声明 ScopedTypeSerializer
-            var name = SerializationHelper.GetName(t);
-            TypeSerializableKind kind;
-            if (SerializationHelper.IsSimpleType(t))
-                kind = TypeSerializableKind.Simple;
-            else if (typeof(IXStringSerializable).IsAssignableFrom(t))
-                kind = TypeSerializableKind.XStringSerializable;
-            else if (typeof(IEnumerable).IsAssignableFrom(t))
-                kind = TypeSerializableKind.Collection;
-            else
-                kind = TypeSerializableKind.Complex;
-            var serializer = new TypeSerializer(kind);
-            //处理引用项。
-            foreach (var attr in t.GetCustomAttributes<XIncludeAttribute>())
-                GetOrDeclareSerializer(attr.Type);
-            //此时此类型已经声明了。
-            serializerDecls.Push(new SerializerDeclaration(t, serializer));
-            return registeredTypes.Register(name, t, serializer);
+            if (obj == null) throw new ArgumentNullException("obj");
+            Debug.Assert(rootType != null);
+            if (!rootType.IsInstanceOfType(obj))
+                throw new InvalidCastException(string.Format(Prompts.InvalidObjectType, obj.GetType(), rootType));
+            var s = registeredTypes.GetSerializer(obj.GetType());
+            return s.Serializer.SerializeXElement(rootName ?? s.Name, obj, null, state);
         }
+
     }
 
     internal enum TypeSerializableKind
@@ -473,6 +482,7 @@ namespace Undefined.Serialization
     {
         private Dictionary<XName, ScopedTypeSerializer> nameDict;
         private Dictionary<Type, ScopedTypeSerializer> typeDict;
+        private string scopeName;
 
         public ScopedTypeSerializer Register(XName name, Type type, TypeSerializer serializer)
         {
@@ -512,7 +522,7 @@ namespace Undefined.Serialization
                     return s;
                 if (noException) return null;
             }
-            throw new NotSupportedException(string.Format(Prompts.UnregisteredType, t));
+            throw new NotSupportedException(string.Format(Prompts.UnregisteredType, t, scopeName));
         }
 
         public ScopedTypeSerializer GetSerializer(XName name)
@@ -525,12 +535,12 @@ namespace Undefined.Serialization
             catch (KeyNotFoundException ex)
             { }
             EXCEPTION:
-            throw new NotSupportedException(string.Format(Prompts.UnregisteredType, name));
+            throw new NotSupportedException(string.Format(Prompts.UnregisteredType, name, scopeName));
         }
 
-        public ScopedTypeCollection()
+        public ScopedTypeCollection(string scopeName)
         {
-            
+            this.scopeName = scopeName;
         }
     }
 }
