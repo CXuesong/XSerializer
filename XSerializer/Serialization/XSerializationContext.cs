@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Undefined.Serialization
 {
@@ -44,17 +45,53 @@ namespace Undefined.Serialization
             get { return _SerializationContext; }
         }
 
+        private XSerializerBuilder _Builder;
+
+        public XElement SerializeXElement(object obj)
+        {
+            return SerializeXElement(obj, null, null);
+        }
+
+        public XElement SerializeXElement(object obj, XName nameOverride)
+        {
+            return SerializeXElement(obj, nameOverride, null);
+        }
+
+        // typeScope is applied for child items, rather than obj itself.
+        public XElement SerializeXElement(object obj, XName nameOverride, SerializationScope typeScope)
+        {
+            Debug.Assert(obj != null);
+            var nominalType = obj.GetType();
+            if (nameOverride == null)
+            {
+                // Now Reject Polymorph
+                if (typeScope != null) nameOverride = typeScope.GetName(nominalType);
+                if (nameOverride == null) nameOverride = _Builder.GlobalScope.GetName(nominalType);
+                if (nameOverride == null)
+                    throw new NotSupportedException(string.Format(Prompts.UnregisteredType, nominalType, _Builder.GlobalScope));
+            }
+            var s = _Builder.GetSerializer(nominalType);
+            if (s == null && SerializationHelper.IsSimpleType(nominalType))
+                return new XElement(nameOverride, obj);
+            EnterObjectSerialization(obj);
+            var e = new XElement(nameOverride);
+            if (s == null)
+                throw new NotSupportedException(string.Format(Prompts.UnregisteredType, nominalType, typeScope));
+            s.Serialize(e, obj, this);
+            ExitObjectSerialization(obj);
+            return e;
+        }
+
         private Stack referenceChain;
 
         /// <summary>
         /// Declares that an reference-type object is to be serialized.
         /// This method is used to check circular reference.
         /// </summary>
-        public void EnterObjectSerialization(object obj)
+        private void EnterObjectSerialization(object obj)
         {
-            Debug.Assert(!obj.GetType().IsValueType);
             // Detect circular reference.
-            if (referenceChain.Contains(obj))
+            if (!obj.GetType().IsValueType && referenceChain.Contains(obj))
                 throw new InvalidOperationException(string.Format(Prompts.CircularReferenceDetected, obj));
             referenceChain.Push(obj);
         }
@@ -62,15 +99,16 @@ namespace Undefined.Serialization
         /// <summary>
         /// Declares that an reference-type object has been serialized.
         /// </summary>
-        public void ExitObjectSerialization(object obj)
+        private void ExitObjectSerialization(object obj)
         {
             var top = referenceChain.Pop();
-            Debug.Assert(top == obj);
+            Debug.Assert(obj.GetType().IsValueType || top == obj);
         }
 
-        public XSerializationState(object contextObj)
+        public XSerializationState(object contextObj, XSerializerBuilder builder)
         {
             referenceChain = new Stack();
+            _Builder = builder;
             _SerializationContext = new XSerializationContext(contextObj);
         }
     }

@@ -142,10 +142,10 @@ namespace Undefined.Serialization
         /// </summary>
         public static Type GetCollectionItemType(Type collectionType)
         {
-            Debug.Assert(collectionType != null && typeof (IEnumerable).IsAssignableFrom(collectionType));
+            Debug.Assert(collectionType != null && typeof(IEnumerable).IsAssignableFrom(collectionType));
             var ienum = collectionType.GetInterfaces().FirstOrDefault(t => t.IsGenericType &&
-                t.GetGenericTypeDefinition() == typeof (IEnumerable<>));
-            if (ienum == null) return typeof (object);
+                t.GetGenericTypeDefinition() == typeof(IEnumerable<>));
+            if (ienum == null) return typeof(object);
             return ienum.GenericTypeArguments[0];
         }
 
@@ -159,6 +159,44 @@ namespace Undefined.Serialization
                 throw new InvalidCastException(String.Format(Prompts.InvalidObjectType, actual, desired));
         }
 
+        private static Type[] _SimpleTypes;
+        /// <summary>
+        /// 获取可直接序列化的简单类型列表。
+        /// Gets a list of types that can be serialized directly.
+        /// </summary>
+        public static Type[] SimpleTypes
+        {
+            get
+            {
+                if (_SimpleTypes == null)
+                {
+                    _SimpleTypes = new[]
+                    {
+                        typeof (Object),
+                        typeof (String),
+                        typeof (Byte),
+                        typeof (SByte),
+                        typeof (Int16),
+                        typeof (UInt16),
+                        typeof (Int32),
+                        typeof (UInt32),
+                        typeof (Int64),
+                        typeof (UInt64),
+                        typeof (Single),
+                        typeof (Double),
+                        typeof (IntPtr),
+                        typeof (UIntPtr),
+                        typeof (DateTime),
+                        typeof (TimeSpan),
+                        typeof (DateTimeOffset),
+                        typeof (Guid)
+                    };
+                }
+                return _SimpleTypes;
+            }
+        }
+
+
         /// <summary>
         /// 判断指定的类型是否为可直接序列化的简单类型。
         /// </summary>
@@ -167,19 +205,18 @@ namespace Undefined.Serialization
             //对于 Nullable 的处理。
             if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>))
                 return IsSimpleType(t.GenericTypeArguments[0]);
-            return t == typeof (Object) || t == typeof (String) || t == typeof (Byte) || t == typeof (SByte)
-                   || t == typeof (Int16) || t == typeof (UInt16) || t == typeof (Int32) || t == typeof (UInt32)
-                   || t == typeof (Int64) || t == typeof (UInt64) || t == typeof (Single) || t == typeof (Double)
-                   || t == typeof (IntPtr) || t == typeof (UIntPtr)
-                   || t == typeof (DateTime) || t == typeof (TimeSpan) || t == typeof (DateTimeOffset)
-                   || t == typeof (Guid);
+            return SimpleTypes.Contains(t);
         }
 
-        public static MethodBase GetExplicitOperator(Type source, Type dest)
+        public static TypeSerializableKind GetSerializationKind(Type t)
         {
-            Debug.Assert(source != null && dest != null);
-            return source.GetMethods(BindingFlags.Static | BindingFlags.Public)
-                .FirstOrDefault(m => m.Name == "op_Explicit" && m.ReturnType == dest);
+            if (IsSimpleType(t))
+                return TypeSerializableKind.Simple;
+            if (typeof(IXStringSerializable).IsAssignableFrom(t))
+                return TypeSerializableKind.XStringSerializable;
+            if (typeof(IEnumerable).IsAssignableFrom(t))
+                return TypeSerializableKind.Collection;
+            return TypeSerializableKind.Complex;
         }
     }
 

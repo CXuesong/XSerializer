@@ -18,7 +18,7 @@ namespace Undefined.Serialization
         private static XSerializerNamespaceCollection defaultNamespaces;
         private static XSerializerParameters defaultParameters;
 
-        private XSerializerCache cache;
+        private XSerializerBuilder builder;
 
         /// <summary>
         /// 将指定的对象序列化，并写入流中。
@@ -78,8 +78,7 @@ namespace Undefined.Serialization
         {
             if (obj == null) throw new ArgumentNullException("obj");
             if (parameters == null) parameters = defaultParameters;
-            var state = new XSerializationState(parameters.Context);
-            var root = cache.Serialize(obj, state);
+            var root = builder.Serialize(obj, parameters.Context);
             foreach (var ns in parameters.Namespaces ?? defaultNamespaces)
                 root.SetAttributeValue(XNamespace.Xmlns + ns.Prefix, ns.Uri);
             return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root);
@@ -122,8 +121,8 @@ namespace Undefined.Serialization
         {
             if (doc == null) throw new ArgumentNullException("doc");
             if (doc.Root == null) throw new ArgumentException(Prompts.EmptyXDocument, "doc");
-            var state = new XSerializationState(context);
-            return cache.Deserialize(doc.Root, state);
+            var state = new XSerializationState(context, builder);
+            return builder.Deserialize(doc.Root, state);
         }
 
         static XSerializer()
@@ -140,11 +139,11 @@ namespace Undefined.Serialization
         public XSerializer(Type rootType, IEnumerable<Type> includedTypes)
         {
             if (rootType == null) throw new ArgumentNullException("rootType");
-            cache = new XSerializerCache();
-            cache.RegisterRootType(rootType);
+            builder = new XSerializerBuilder();
+            builder.RegisterRootType(rootType);
             if (includedTypes != null)
                 foreach (var t in includedTypes)
-                    cache.RegisterType(t);
+                    builder.RegisterType(t);
         }
     }
 

@@ -54,7 +54,8 @@
   <ItemGroup>
     <Compile Include="UnitTest1.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Simple.cs" />
+    <Compile Include="Simple1.cs" />
+    <Compile Include="Simple2.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\XSerializer\XSerializer.csproj">

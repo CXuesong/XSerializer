@@ -214,7 +214,7 @@ namespace Undefined.Serialization
     }
 
     /// <summary>
-    /// [RIW] 指示应当将所有未识别的XML元素保存至此。
+    /// 指示应当将所有未识别的XML元素保存至此。
     /// Specifies all the unrecognized XML elements should be contained in the field or property.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
