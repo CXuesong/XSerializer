@@ -151,6 +151,13 @@ namespace Undefined.Serialization
             return ienum.GenericTypeArguments[0];
         }
 
+        public static MethodInfo FindCollectionAddMethod(Type collectionType)
+        {
+            var viType = GetCollectionItemType(collectionType);
+            return collectionType.GetMethod("Add", new[] {viType}) ??
+                   GetICollection(collectionType).GetMethod("Add", new[] {viType});
+        }
+
         public static bool IsDictionary(Type t)
         {
             return typeof(IDictionary).IsAssignableFrom(t);
@@ -167,17 +174,29 @@ namespace Undefined.Serialization
         public static Type GetIDictionary(Type dictionaryType)
         {
             Debug.Assert(IsDictionary(dictionaryType));
-            return dictionaryType.GetInterfaces()
-                .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IDictionary<,>))
-                   ?? typeof(IDictionary);
+            return GetGenericInterface(dictionaryType, typeof(IDictionary<,>)) ?? typeof(IDictionary);
+        }
+
+        public static Type GetIEnumerable(Type collectionType)
+        {
+            Debug.Assert(typeof(IEnumerable).IsAssignableFrom(collectionType));
+            return GetGenericInterface(collectionType, typeof(IEnumerable<>)) ?? typeof(IEnumerable);
         }
 
         public static Type GetICollection(Type collectionType)
         {
-            Debug.Assert(collectionType.IsAssignableFrom(collectionType));
-            return collectionType.GetInterfaces()
-                .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(ICollection<>))
-                   ?? typeof(ICollection);
+            //Debug.Assert(typeof(ICollection).IsAssignableFrom(collectionType));
+            // ICollecion<T> does not derive from ICollection
+            return GetGenericInterface(collectionType, typeof (ICollection<>)) ??
+                   (typeof (ICollection).IsAssignableFrom(collectionType) ? typeof (ICollection) : null);
+        }
+
+        public static Type GetGenericInterface(Type type, Type genericInterfaceType)
+        {
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == genericInterfaceType)
+                return type;
+            return type.GetInterfaces()
+                .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == genericInterfaceType);
         }
 
         /// <summary>

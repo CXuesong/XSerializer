@@ -176,10 +176,12 @@ namespace Undefined.Serialization
             return s.Deserialize(e, obj, this, typeScope);
         }
 
-        public IList<XElement> DeserializeAnyElements(XElement e)
+        /// <summary>
+        /// Enumerates all elements that is not in specific set.
+        /// </summary>
+        public IEnumerable<XElement> EnumAnyElements(XElement e, HashSet<XName> knownNames)
         {
-            List<XElement> items;
-            return null;
+            return e.Elements().Where(ex => !knownNames.Contains(ex.Name));
         }
 
         private Stack referenceChain;

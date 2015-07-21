@@ -206,9 +206,9 @@ namespace Undefined.Serialization
     /// Specifies all the unrecognized XML attributes should be contained in the field or property.
     /// </summary>
     [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
-    public sealed class XmlAnyAttributeAttribute : Attribute
+    public sealed class XAnyAttributeAttribute : Attribute
     {
-        public XmlAnyAttributeAttribute()
+        public XAnyAttributeAttribute()
         {
         }
     }

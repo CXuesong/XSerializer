@@ -119,7 +119,8 @@ namespace Undefined.Serialization
 
         private Expression ForEach(ParameterExpression i, ParameterExpression enumerable, E body)
         {
-            var enumerator = enumerable.CallMember("GetEnumerator");
+            var enumerator = enumerable.Cast(SerializationHelper.GetIEnumerable(enumerable.Type))
+                .CallMember("GetEnumerator");
             var localEnum = E.Variable(enumerator.Type, "myEnumerator");
             var labelExitFor = E.Label("exitForEach");
             return E.Block(new[] { localEnum, i },
@@ -129,8 +130,6 @@ namespace Undefined.Serialization
                     E.Break(labelExitFor)), labelExitFor));
         }
 
-        private static ConstructorInfo XElement_Constructor2 =
-            typeof(XElement).GetConstructor(new[] { typeof(XName), typeof(object) });
         private static MethodInfo IEnumerator_MoveNext = typeof(IEnumerator).GetMethod("MoveNext");
         private static MethodInfo IXStringSerializable_Serialize = typeof(IXStringSerializable).GetMethod("Serialize");
         private static MethodInfo IXStringSerializable_Deserialize = typeof(IXStringSerializable).GetMethod("Deserialize");
@@ -140,7 +139,8 @@ namespace Undefined.Serialization
             if (t.IsArray) return null;
             var constr = t.GetConstructor(Type.EmptyTypes);
             if (constr != null) return constr;
-            if (t.IsAssignableFrom(typeof(IEnumerable)))
+            //为接口寻找合适的实现类型。
+            if (typeof(IEnumerable).IsAssignableFrom(t))
             {
                 var viType = SerializationHelper.GetCollectionItemType(t);
                 // General Lists
@@ -150,24 +150,27 @@ namespace Undefined.Serialization
             return null;
         }
 
+        // (RUNTIME) Construct or reuse existing object.
         private static Expression BuildObjectConstructor(Type t, Expression existingObject)
         {
             //寻找合适的构造函数。
             var tConstructor = GetTypeConstructor(t);
-            if (tConstructor == null) throw new NotSupportedException(string.Format(Prompts.UnableToDeserialize, t));
+            if (tConstructor == null) 
+                throw new NotSupportedException(string.Format(Prompts.UnableToDeserialize, t));
             //使用默认的构造函数。
             var localObj = E.Parameter(t, "constructingObj");
             return E.Block(t, new[] {localObj},
                 localObj.AssignFrom(existingObject.Cast(t)),
                 SerializationHelper.IsNullable(t)
-                    ? E.Condition(localObj.EqualsTo(E.Constant(null)), E.New(tConstructor), localObj)
+                    ? E.Condition(localObj.EqualsTo(E.Constant(null)), E.New(tConstructor).Cast(t), localObj)
                     : E.New(tConstructor).Cast(t));
         }
 
 
-        private static Expression BuildCollection(Type t, Expression existingCollection, Type viType, Func<ParameterExpression, E> addItemsBlockBuilder)
+        private static Expression BuildCollection(Type t, Expression existingCollection, Func<ParameterExpression, E> addItemsBlockBuilder)
         {
             var localCollection = E.Parameter(t, "collection");
+            var viType = SerializationHelper.GetCollectionItemType(t);
             if (t.IsArray)
             {
                 if (t.GetArrayRank() > 1)
@@ -187,6 +190,26 @@ namespace Undefined.Serialization
                 localCollection.AssignFrom(BuildObjectConstructor(t, existingCollection.Cast(t))),
                 addItemsBlockBuilder(localCollection),
                 localCollection);
+        }
+
+        // newValueGenerator : Expression (Expression currentValue)
+        private Expression BuildMemberAssigner(E obj, MemberInfo member, Func<E, E> newValueGenerator)
+        {
+            var memberType = SerializationHelper.GetMemberValueType(member);
+            var localCurrentValue = E.Parameter(memberType, "current" + member.Name);
+            var localNewValue = E.Parameter(memberType, "new" + member.Name);
+            var assignMemberExpr = SerializationHelper.IsMemberReadOnly(member)
+                ? E.Throw(E.Constant(
+                    new NotSupportedException(string.Format(Prompts.UnableToDeserialize,
+                        member))))
+                : obj.Member(member).AssignFrom(localNewValue);
+            return E.Block(memberType, new[] {localCurrentValue, localNewValue},
+                localCurrentValue.AssignFrom(obj.Member(member)),
+                localNewValue.AssignFrom(newValueGenerator(localCurrentValue)),
+                (SerializationHelper.IsNullable(memberType)
+                    ? localCurrentValue.NotEqualsTo(localNewValue).IfTrue(assignMemberExpr)
+                    : assignMemberExpr),
+                localNewValue);
         }
 
         /// <summary>
@@ -238,7 +261,7 @@ namespace Undefined.Serialization
                         : tempExpr
                     ));
                 // Deserialize
-                exprd.Add(localObj.AssignFrom(BuildCollection(t, argObj, viType, destList =>
+                exprd.Add(localObj.AssignFrom(BuildCollection(t, argObj, destList =>
                 {
                     var localEachElement = E.Variable(typeof(XElement), "eachElement");
                     if (SerializationHelper.IsDictionary(t))
@@ -246,13 +269,12 @@ namespace Undefined.Serialization
                         //is a dictionary
                         //TODO: Build appropriate logic to construct KeyValuePair
                         // or using IDictionary.Add
-                        return E.Block(ForEach(localEachElement, argElement.CallMember("Elements"), E.Block(
-                            destList.CallMember(SerializationHelper.GetICollection(t).GetMethod("Add", new[] { viType }),
-                                argState.CallMember("DeserializeXCollectionItem", localEachElement, argTypeScope).Cast(viType)))));
+                        throw new NotSupportedException("IDictionary is currently not supported.");
                     }
-                    return E.Block(ForEach(localEachElement, argElement.CallMember("Elements"), E.Block(
-                        destList.CallMember("Add", argState.CallMember("DeserializeXCollectionItem",
-                            localEachElement, argTypeScope).Cast(viType)))));
+                    return ForEach(localEachElement, argElement.CallMember("Elements"),
+                        destList.CallMember(SerializationHelper.FindCollectionAddMethod(t),
+                            argState.CallMember("DeserializeXCollectionItem",
+                                localEachElement, argTypeScope).Cast(viType)));
                 })));
             }
             else
@@ -269,11 +291,14 @@ namespace Undefined.Serialization
                     bindingFlags |= BindingFlags.NonPublic;
             }
             //用于保存可被识别的属性和元素列表，以便于生成未识别的元素列表。
-            var recognizedAttributes = new HashSet<XName>();
-            var recognizedElements = new HashSet<XName>();
+            var knownAttributes = new HashSet<XName>();
+            var knownElements = new HashSet<XName>();
             foreach (var member in t.GetMembers(bindingFlags))
             {
                 //exprd.Add(argState.CallMember("TestPoint", E.Constant(member.Name).Cast<object>()));
+                if (member.MemberType != MemberTypes.Field && member.MemberType != MemberTypes.Property)
+                    continue;
+                var memberType = SerializationHelper.GetMemberValueType(member);
                 //杂项元素。
                 var anyElemAttr = member.GetCustomAttribute<XAnyElementAttribute>();
                 if (anyElemAttr != null)
@@ -286,11 +311,22 @@ namespace Undefined.Serialization
                     var localEachElem = E.Variable(typeof(object), "eachElem");
                     exprs.Add(ForEach(localEachElem, localObj.Member(member),
                         E.Call(argElement, "Add", null, new Expression[] { localEachElem })));
-                    exprd.Add(ForEach(localEachElem, localObj.Member(member),
-                        E.Call(argElement, "Add", null, new Expression[] { localEachElem })));
+                    // Deserialize
+                    exprd.Add(BuildMemberAssigner(localObj, member, current =>
+                        BuildCollection(memberType, current,
+                            destList =>
+                            {
+                                var localEachElement = E.Variable(typeof (XElement), "eachElement");
+                                var anyElements = E.Invoke(
+                                    (Expression<Func<XElement, HashSet<XName>, IEnumerable<XElement>>>)
+                                        ((e, k) => e.Elements().Where(ex => !k.Contains(ex.Name))),
+                                    argElement, E.Constant(knownElements));
+                                return ForEach(localEachElement, anyElements,
+                                    destList.CallMember(SerializationHelper.FindCollectionAddMethod(memberType), localEachElement));
+                            })));
                 }
                 //杂项属性。
-                var anyAttrAttr = member.GetCustomAttribute<XmlAnyAttributeAttribute>();
+                var anyAttrAttr = member.GetCustomAttribute<XAnyAttributeAttribute>();
                 if (anyAttrAttr != null)
                 {
                     if (anyElemAttr != null)
@@ -301,7 +337,21 @@ namespace Undefined.Serialization
                     var localEachAttr = E.Variable(typeof(object), "eachAttr");
                     exprs.Add(ForEach(localEachAttr, localObj.Member(member),
                         E.Call(argElement, "Add", null, new Expression[] { localEachAttr })));
-                    //anyAttributeMember = member;
+                    // Deserialize
+                    exprd.Add(BuildMemberAssigner(localObj, member, current =>
+                        BuildCollection(memberType, current,
+                            destList =>
+                            {
+                                var localEachAttribute = E.Variable(typeof (XAttribute), "eachAttribute");
+                                var anyAttributes = E.Invoke(
+                                    (Expression<Func<XElement, HashSet<XName>, IEnumerable<XAttribute>>>)
+                                        ((e, k) => e.Attributes().Where(a =>
+                                            a.Name.Namespace != XNamespace.Xmlns && !k.Contains(a.Name))),
+                                    argElement, E.Constant(knownAttributes));
+                                return ForEach(localEachAttribute, anyAttributes,
+                                    destList.CallMember(SerializationHelper.FindCollectionAddMethod(memberType),
+                                        localEachAttribute));
+                            })));
                 }
                 //元素。
                 var eattr = member.GetCustomAttribute<XElementAttribute>();
@@ -310,43 +360,28 @@ namespace Undefined.Serialization
                     if (anyElemAttr != null || anyAttrAttr != null)
                         throw new InvalidOperationException(string.Format(
                             Prompts.InvalidAttributesCombination, member));
-                    var memberType = SerializationHelper.GetMemberValueType(member);
                     var memberKind = SerializationHelper.GetSerializationKind(memberType);
                     var memberNameExpr = E.Constant(SerializationHelper.GetName(member, eattr));
                     var localCurrentValue = E.Parameter(memberType, "currentValue");
+                    knownElements.Add((XName) memberNameExpr.Value);
                     exprd.Add(localNewValueElem.AssignFrom(argElement.CallMember("Element", memberNameExpr)));
                     switch (memberKind)
                     {
                         case TypeSerializationKind.Simple:
-                            exprs.Add(SerializationHelper.IsNullable(memberType)
-                                ? E.Block(new[] {localCurrentValue},
-                                    localCurrentValue.AssignFrom(localObj.Member(member)),
-                                    localCurrentValue.NotEqualsTo(E.Constant(null))
-                                        .IfTrue(argElement.CallMember("Add",
-                                            E.New(XElement_Constructor2, memberNameExpr, localCurrentValue.Cast<object>()))))
-                                : argElement.CallMember("Add",
-                                    E.New(XElement_Constructor2, memberNameExpr, localObj.Member(member).Cast<object>())));
+                            exprs.Add(argElement.CallMember("SetElementValue", memberNameExpr,
+                                localObj.Member(member).Cast<object>()));
                             exprd.Add(localNewValueElem.NotEqualsTo(E.Constant(null)).IfTrue(
                                 localObj.Member(member).AssignFrom(localNewValueElem.Cast(memberType))));
                             break;
                         case TypeSerializationKind.XStringSerializable:
-                            exprs.Add(argElement.CallMember("Add", E.New(XElement_Constructor2,
-                                memberNameExpr,
-                                localObj.Member(member).CallMember(IXStringSerializable_Serialize))));
+                            exprs.Add(argElement.CallMember("SetElementValue", memberNameExpr,
+                                localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
                             //Deserialize
-                            exprd.Add(E.Block(new[] {localCurrentValue},
-                                localNewValueStr.AssignFrom(localNewValueElem.Cast<string>()),
-                                localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(E.Block(
-                                    localCurrentValue.AssignFrom(localObj.Member(member)),
-                                    localCurrentValue.EqualsTo(E.Constant(null)).IfTrue(
-                                        SerializationHelper.IsMemberReadOnly(member)
-                                            ? E.Throw(E.Constant(
-                                                new NotSupportedException(string.Format(Prompts.UnableToDeserialize,
-                                                    member))))
-                                            : localObj.Member(member).AssignFrom(
-                                                localCurrentValue.AssignFrom(BuildObjectConstructor(memberType,
-                                                    localCurrentValue)))),
-                                    localCurrentValue.CallMember(IXStringSerializable_Deserialize, localNewValueStr)))));
+                            exprd.Add(localNewValueStr.AssignFrom(localNewValueElem.Cast<string>()));
+                            exprd.Add(localNewValueElem.NotEqualsTo(E.Constant(null)).IfTrue(
+                                BuildMemberAssigner(localObj, member, current =>
+                                    BuildObjectConstructor(memberType, localCurrentValue))
+                                    .CallMember(IXStringSerializable_Deserialize, localNewValueStr)));
                             break;
                         case TypeSerializationKind.Collection:
                         case TypeSerializationKind.Complex:
@@ -380,22 +415,13 @@ namespace Undefined.Serialization
                                     E.Constant(SerializationHelper.GetName(member, eattr)),
                                     E.Constant(scope, typeof(SerializationScope)))));
                             //Deserialize
-                            var localNewValue = E.Parameter(memberType, "newValue");
-                            var assignMemberExpr = SerializationHelper.IsMemberReadOnly(member)
-                                ? E.Throw(E.Constant(
-                                    new NotSupportedException(string.Format(Prompts.UnableToDeserialize,
-                                        member))))
-                                : localObj.Member(member).AssignFrom(localNewValue);
                             exprd.Add(localNewValueElem.NotEqualsTo(E.Constant(null)).IfTrue(
-                                E.Block(new[] { localCurrentValue, localNewValue },
-                                    localCurrentValue.AssignFrom(localObj.Member(member)),
-                                    localNewValue.AssignFrom(argState.CallMember("DeserializeXProperty",
+                                BuildMemberAssigner(localObj, member, current => 
+                                    argState.CallMember("DeserializeXProperty",
                                         localNewValueElem,
-                                        localCurrentValue.Cast<object>(), E.Constant(memberType),
-                                        E.Constant(scope, typeof(SerializationScope))).Cast(memberType)),
-                                    SerializationHelper.IsNullable(memberType)
-                                        ? localCurrentValue.NotEqualsTo(localNewValue).IfTrue(assignMemberExpr)
-                                        : assignMemberExpr)));
+                                        current.Cast<object>(), E.Constant(memberType),
+                                        E.Constant(scope, typeof (SerializationScope))).Cast(memberType)
+                                    )));
                             break;
                     }
                 }
@@ -406,9 +432,9 @@ namespace Undefined.Serialization
                     if (eattr != null || anyElemAttr != null || anyAttrAttr != null)
                         throw new InvalidOperationException(string.Format(
                             Prompts.InvalidAttributesCombination, member));
-                    var memberType = SerializationHelper.GetMemberValueType(member);
                     var memberNameExpr = E.Constant(SerializationHelper.GetName(member, aattr));
                     var localCurrentValue = E.Parameter(memberType, "currentValue");
+                    knownAttributes.Add((XName)memberNameExpr.Value);
                     exprd.Add(localNewValueAttr.AssignFrom(argElement.CallMember("Element", memberNameExpr)));
                     switch (SerializationHelper.GetSerializationKind(memberType))
                     {
@@ -422,19 +448,11 @@ namespace Undefined.Serialization
                             exprs.Add(argElement.CallMember("SetAttributeValue", memberNameExpr,
                                 localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
                             //Deserialize
-                            exprd.Add(E.Block(new[] {localCurrentValue},
-                                localNewValueStr.AssignFrom(localNewValueAttr.Cast<string>()),
-                                localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(E.Block(
-                                    localCurrentValue.AssignFrom(localObj.Member(member)),
-                                    localCurrentValue.EqualsTo(E.Constant(null)).IfTrue(
-                                        SerializationHelper.IsMemberReadOnly(member)
-                                            ? E.Throw(E.Constant(
-                                                new NotSupportedException(string.Format(Prompts.UnableToDeserialize,
-                                                    member))))
-                                            : localObj.Member(member).AssignFrom(
-                                                localCurrentValue.AssignFrom(BuildObjectConstructor(memberType,
-                                                    localCurrentValue)))),
-                                    localCurrentValue.CallMember(IXStringSerializable_Deserialize, localNewValueStr)))));
+                            exprd.Add(localNewValueStr.AssignFrom(localNewValueAttr.Cast<string>()));
+                            exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(
+                                BuildMemberAssigner(localObj, member, current =>
+                                    BuildObjectConstructor(memberType, localCurrentValue))
+                                    .CallMember(IXStringSerializable_Deserialize, localNewValueStr)));
                             break;
                         case TypeSerializationKind.Collection:
                         case TypeSerializationKind.Complex:
