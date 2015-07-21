@@ -127,8 +127,7 @@ namespace Undefined.Serialization
 
         static XSerializer()
         {
-            defaultNamespaces = new XSerializerNamespaceCollection();
-            //defaultNamespaces.Add()
+            defaultNamespaces = new XSerializerNamespaceCollection {{"xsi", SerializationHelper.Xsi.NamespaceName}};
             defaultParameters = new XSerializerParameters(defaultNamespaces, null);
         }
 

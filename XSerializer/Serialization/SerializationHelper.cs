@@ -13,6 +13,8 @@ namespace Undefined.Serialization
     internal static class SerializationHelper
     {
 
+        public static readonly XNamespace Xsi = "http://www.w3.org/2001/XMLSchema-instance";
+
         /// <summary>
         /// 将复数转换为适合于 XML 存取的字符串。
         /// </summary>
@@ -149,6 +151,35 @@ namespace Undefined.Serialization
             return ienum.GenericTypeArguments[0];
         }
 
+        public static bool IsDictionary(Type t)
+        {
+            return typeof(IDictionary).IsAssignableFrom(t);
+        }
+
+        /// <summary>
+        /// 判断指定的类型是否可以为 null。
+        /// </summary>
+        public static bool IsNullable(Type t)
+        {
+            return !t.IsValueType || t.IsGenericType && t.GetGenericTypeDefinition() == typeof (Nullable<>);
+        }
+
+        public static Type GetIDictionary(Type dictionaryType)
+        {
+            Debug.Assert(IsDictionary(dictionaryType));
+            return dictionaryType.GetInterfaces()
+                .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IDictionary<,>))
+                   ?? typeof(IDictionary);
+        }
+
+        public static Type GetICollection(Type collectionType)
+        {
+            Debug.Assert(collectionType.IsAssignableFrom(collectionType));
+            return collectionType.GetInterfaces()
+                .FirstOrDefault(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(ICollection<>))
+                   ?? typeof(ICollection);
+        }
+
         /// <summary>
         /// 判断指定的类型与期望类型是否相同，或者可进行扩大转换。
         /// </summary>
@@ -196,6 +227,12 @@ namespace Undefined.Serialization
             }
         }
 
+        public static MethodBase GetExplicitOperator(Type source, Type dest)
+        {
+            Debug.Assert(source != null && dest != null);
+            return source.GetMethods(BindingFlags.Static | BindingFlags.Public)
+                .FirstOrDefault(m => m.Name == "op_Explicit" && m.ReturnType == dest);
+        }
 
         /// <summary>
         /// 判断指定的类型是否为可直接序列化的简单类型。
@@ -208,15 +245,15 @@ namespace Undefined.Serialization
             return SimpleTypes.Contains(t);
         }
 
-        public static TypeSerializableKind GetSerializationKind(Type t)
+        public static TypeSerializationKind GetSerializationKind(Type t)
         {
             if (IsSimpleType(t))
-                return TypeSerializableKind.Simple;
+                return TypeSerializationKind.Simple;
             if (typeof(IXStringSerializable).IsAssignableFrom(t))
-                return TypeSerializableKind.XStringSerializable;
+                return TypeSerializationKind.XStringSerializable;
             if (typeof(IEnumerable).IsAssignableFrom(t))
-                return TypeSerializableKind.Collection;
-            return TypeSerializableKind.Complex;
+                return TypeSerializationKind.Collection;
+            return TypeSerializationKind.Complex;
         }
     }
 

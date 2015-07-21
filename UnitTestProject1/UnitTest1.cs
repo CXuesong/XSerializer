@@ -41,15 +41,30 @@ namespace UnitTestProject1
         }
 
         [XElement("compositeArray", MyUri1)]
-        [XCollectionItem(typeof(string))]
-        [XCollectionItem(typeof(double))]
-        [XCollectionItem(typeof(MyObject1), "embededObject")]
-        public object[] Array1 { get; set; }
+        [XCollectionItem(typeof (string))]
+        [XCollectionItem(typeof (double))]
+        [XCollectionItem(typeof (MyObject1), "embededObject")]
+        public object[] Array1
+        {
+            get { return _Array1; }
+            set
+            {
+                //Debug.Print("Set Array1 : {0}", GetHashCode());
+                _Array1 = value;
+            }
+        }
 
         [XElement(null, MyUri1)]
         public MyObject1 AnotherObject;
 
+        private object[] _Array1;
+
         private string[] Array2 {get; set; }
+
+        public MyObject1()
+        {
+            //Debug.Print("Constructed : {0}", GetHashCode());
+        }
     }
 
     [TestClass]
@@ -58,7 +73,7 @@ namespace UnitTestProject1
         [TestMethod]
         public void SerializationTest1()
         {
-            const int repetitions = 50;
+            const int repetitions = 1000;
             var s = new XSerializer(typeof(MyObject1));
             var ns = new XSerializerNamespaceCollection { { "n1", MyObject1.MyUri1 }, { "n2", MyObject1.MyUri2 } };
             var p = new XSerializerParameters(ns);
@@ -80,6 +95,7 @@ namespace UnitTestProject1
             var doc = s.GetSerializedDocument(obj, p);
             Trace.WriteLine(doc);
             var obj1 = (MyObject1) s.Deserialize(doc, null);
+            //Debug.Print("Deserialize Obj : {0}", obj1.GetHashCode());
             Assert.AreEqual(obj.Property1, obj1.Property1);
             Assert.AreEqual(obj.Property1, obj1.Property1);
             Assert.AreEqual(obj.List1.Count, obj1.List1.Count);

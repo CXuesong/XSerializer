@@ -20,7 +20,7 @@ namespace UnitTestProject1
             }
         }
 
-        [TestMethod]
+        //[TestMethod]
         public void TestMethod1()
         {
             var s = new XSerializer(typeof(SimpleObject2));
