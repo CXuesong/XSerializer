@@ -3,35 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace Undefined.Serialization
 {
-    /// <summary>
-    /// 为 XML 序列化过程提供附加信息。
-    /// Provides contextual information during XML serialization process.
-    /// </summary>
-    public struct XSerializationContext
-    {
-        private object _Context;
-
-        /// <summary>
-        /// 由序列化调用方提供的附加信息。
-        /// Get the additional context provided by the caller.
-        /// </summary>
-        public object Context
-        {
-            get { return _Context; }
-        }
-
-        public XSerializationContext(object context)
-        {
-            _Context = context;
-        }
-    }
-
     /// <summary>
     /// Provides more info to enable some features like
     /// cicular reference detection during serialization.
@@ -40,11 +18,11 @@ namespace Undefined.Serialization
     {
         private static readonly XName XsiType = SerializationHelper.Xsi + "type";
 
-        private XSerializationContext _SerializationContext;
+        private StreamingContext _Context;
 
-        public XSerializationContext SerializationContext
+        public StreamingContext Context
         {
-            get { return _SerializationContext; }
+            get { return _Context; }
         }
 
         private XSerializerBuilder _Builder;
@@ -58,7 +36,7 @@ namespace Undefined.Serialization
             var objTypeName = _Builder.GlobalScope.GetName(objType);
             if (objTypeName == null)
                 throw new NotSupportedException(string.Format(Prompts.UnregisteredType, objType, _Builder.GlobalScope));
-            //实际类型，就是被 nameOverride 覆盖过的 objTypeName
+
             var s = _Builder.GetSerializer(objType);
             var e = new XElement(name);
             //如果名义类型和实际类型不同，则注明实际类型。
@@ -106,8 +84,8 @@ namespace Undefined.Serialization
         {
             //Debug.Print("SC : {0}\t{1}", obj, typeScope);
             Debug.Assert(typeScope != null);
-            var objTypeName = typeScope.GetName(obj.GetType());
-            var nominalType = defaultType;
+            var nominalType = obj.GetType();
+            var objTypeName = typeScope.GetName(nominalType);
             if (objTypeName == null)
             {
                 objTypeName = typeScope.GetName(defaultType);
@@ -207,11 +185,11 @@ namespace Undefined.Serialization
             Debug.Assert(obj.GetType().IsValueType || top == obj);
         }
 
-        public XSerializationState(object contextObj, XSerializerBuilder builder)
+        public XSerializationState(StreamingContext context, XSerializerBuilder builder)
         {
             referenceChain = new Stack();
             _Builder = builder;
-            _SerializationContext = new XSerializationContext(contextObj);
+            _Context = context;
         }
     }
 }

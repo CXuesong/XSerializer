@@ -57,6 +57,7 @@
     <Compile Include="Simple1.cs" />
     <Compile Include="Simple2.cs" />
     <Compile Include="AnyElementTest.cs" />
+    <Compile Include="CallbackTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\XSerializer\XSerializer.csproj">

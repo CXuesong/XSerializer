@@ -121,8 +121,7 @@ namespace Undefined.Serialization
         {
             if (doc == null) throw new ArgumentNullException("doc");
             if (doc.Root == null) throw new ArgumentException(Prompts.EmptyXDocument, "doc");
-            var state = new XSerializationState(context, builder);
-            return builder.Deserialize(doc.Root, state);
+            return builder.Deserialize(doc.Root, context);
         }
 
         static XSerializer()

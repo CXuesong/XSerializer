@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -245,6 +246,17 @@ namespace Undefined.Serialization
             exprs.Add(E.Invoke((Expression<Action<object>>)(obj => Debug.Assert(t.IsInstanceOfType(obj))), argObj));
 #endif
             exprs.Add(localObj.AssignFrom(argObj.Cast(t)));
+            // 处理回调函数。 Invoke callbacks.
+            var onDeserializingCallbacks = new List<MethodInfo>();
+            foreach (var method in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic 
+                | BindingFlags.Static | BindingFlags.Instance))
+            {
+                if (method.GetCustomAttribute<OnSerializingAttribute>() != null)
+                    exprs.Add(localObj.CallMember(method, argState.Member("Context")));
+                if (method.GetCustomAttribute<OnDeserializingAttribute>() != null)
+                    //注意，此时 argObj == null
+                    onDeserializingCallbacks.Add(method);
+            }
             if (kind == TypeSerializationKind.Collection)
             {
                 //处理集合类型中包含的项目。
@@ -271,16 +283,24 @@ namespace Undefined.Serialization
                         // or using IDictionary.Add
                         throw new NotSupportedException("IDictionary is currently not supported.");
                     }
-                    return ForEach(localEachElement, argElement.CallMember("Elements"),
+                    var coreExpr = ForEach(localEachElement, argElement.CallMember("Elements"),
                         destList.CallMember(SerializationHelper.FindCollectionAddMethod(t),
                             argState.CallMember("DeserializeXCollectionItem",
                                 localEachElement, argTypeScope).Cast(viType)));
+                    if (onDeserializingCallbacks.Count > 0 && t.IsAssignableFrom(destList.Type))
+                    {
+                        //集合刚刚初始化完毕后，调用回调函数，然后再添加项目。
+                        return E.Block(E.Block(onDeserializingCallbacks.Select(
+                            m => localObj.CallMember(m, argState.Member("Context")))), coreExpr);
+                    }
+                    return coreExpr;
                 })));
             }
             else
             {
                 //kind == TypeSerializationKind.Complex
                 exprd.Add(localObj.AssignFrom(BuildObjectConstructor(t, argObj)));
+                exprd.AddRange(onDeserializingCallbacks.Select(m => localObj.CallMember(m, argState.Member("Context"))));
             }
             //序列化属性/字段。 Serialize property / field.
             var bindingFlags = BindingFlags.GetProperty | BindingFlags.GetField
@@ -461,13 +481,22 @@ namespace Undefined.Serialization
                     }
                 }
             }
-            var block = E.Block(typeof(void), locals, exprs);
-            serializer.RegisterSerializeXElementAction(E.Lambda(block, argElement, argObj, argState, argTypeScope).Compile());
+            // 处理回调函数。 Invoke callbacks.
+            foreach (var method in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
+                | BindingFlags.Static | BindingFlags.Instance))
+            {
+                if (method.GetCustomAttribute<OnSerializedAttribute>() != null)
+                    exprs.Add(localObj.CallMember(method, argState.Member("Context")));
+                if (method.GetCustomAttribute<OnDeserializedAttribute>() != null)
+                    exprd.Add(localObj.CallMember(method, argState.Member("Context")));
+            }
+            // 别忘了反序列化的返回值。
             exprd.Add(localObj);
-            var s = E.Lambda(block, argElement, argObj, argState, argTypeScope);
-            block = E.Block(typeof(object), locald, exprd);
-            serializer.RegisterDeserializeXElementAction(E.Lambda(block, argElement, argObj, argState, argTypeScope).Compile());
-            var d = E.Lambda(block, argElement, argObj, argState, argTypeScope);
+            // 编译。
+            var serializerLambda = E.Lambda(E.Block(typeof(void), locals, exprs), argElement, argObj, argState, argTypeScope);
+            serializer.RegisterSerializeXElementAction(serializerLambda.Compile());
+            var deserializerLambda = E.Lambda(E.Block(typeof(object), locald, exprd), argElement, argObj, argState, argTypeScope);
+            serializer.RegisterDeserializeXElementAction(deserializerLambda.Compile());
         }
 
         private struct SerializerDeclaration
@@ -498,14 +527,14 @@ namespace Undefined.Serialization
             Debug.Assert(rootType != null);
             if (!rootType.IsInstanceOfType(obj))
                 throw new InvalidCastException(string.Format(Prompts.InvalidObjectType, obj.GetType(), rootType));
-            var state = new XSerializationState(context, this);
+            var state = new XSerializationState(new StreamingContext(StreamingContextStates.Persistence, context), this);
             return state.SerializeRoot(obj, rootType, rootName ?? _GlobalScope.GetName(rootType));
         }
 
         public object Deserialize(XElement e, object context)
         {
             if (e == null) throw new ArgumentNullException("e");
-            var state = new XSerializationState(context, this);
+            var state = new XSerializationState(new StreamingContext(StreamingContextStates.Persistence, context), this);
             var obj = state.DeserializeRoot(e, rootType);
             Debug.Assert(rootType.IsInstanceOfType(obj));
             return obj;
