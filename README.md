@@ -1,6 +1,8 @@
 # XSerializer
 A customizable XML serializer based on XML to LINQ.
 
+Basic goals have been reached. It may be a stable version now.
+
 ## Features
 * Attribute-controlled XML element/attribute generation.
 	* Opt-in member generation mode (That is, only attributed members will be serialized.)
@@ -11,13 +13,21 @@ A customizable XML serializer based on XML to LINQ.
 	* Supports property/field that uses another class as type.
 	* Supports collections that implements `IEnumerable`.
 * Serialized collecions can have attributes.
-* Complex classes can be converted to / back from string and stored in attributes. (By implementing `IXStringSerializable`)
-* ~~Multi-referenced instance serialization. ~~ (See <u>Multiple & Circular References</u>)
-* Serialization callbacks. (Not Implemented Yet)
+* Complex classes can be converted to / back from string and stored in attributes.
+	(By implementing `IXStringSerializable`)
+* [Depreciated] ~~ Multi-referenced instance serialization. ~~
+	(See <u>Multiple & Circular References</u> for more information.)
+* Serialization callbacks.
+	(Using OnSerializingAttribute etc.Note for types that implement
+	`IXStringSerializable`, callback attributes will be ignored.)
+* Serialization procedure is compiled using Linq.Expression.
+	[Once compiled, it can be reused, (even support multi-threading **NOT TESTED YET**). ]
 * Deserialization
 	* Supports read-only property/field deserialization (in-situ deserialization),
 	as long as they return writable objects/collecions/arrays.
-	* Preliminarily supports IEnumerable / IList deserialization.
+	* Supports IEnumerable / ICollection / IList deserialization.
+	During deserialization, new items will be appended to the existing list,
+	or (if `Add` is not supported) a List<T> will be assigned.
 
 ## Background
 I just want to implement the functionality of `System.Xml.Serialization.XmlSerializer` on my own. Maybe you've noticed that `XmlSerializer` enables us to create & load XML documents from & to classes, and the behaviors can be adjusted via different Attributes. Compared with DataContractSeriallizer, it can give you more control on what the XML document should look like. However, the mechanism of `XmlSerializer` is still rigid in the way that you can't gain full control on some elements / attributes, while maintain the rest of the members clean & tidy. For example, a commonly occurred problem to who use `XmlSerializer` is that, it cannot properly handle multiple references towards the same instance. Instead, the same instance is stored multiple times in XML. Hence, it also cannot handle circular references.
