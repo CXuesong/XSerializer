@@ -78,9 +78,7 @@ namespace Undefined.Serialization
         {
             if (obj == null) throw new ArgumentNullException("obj");
             if (parameters == null) parameters = defaultParameters;
-            var root = builder.Serialize(obj, parameters.Context);
-            foreach (var ns in parameters.Namespaces ?? defaultNamespaces)
-                root.SetAttributeValue(XNamespace.Xmlns + ns.Prefix, ns.Uri);
+            var root = builder.Serialize(obj, parameters.Context, parameters.Namespaces ?? defaultNamespaces);
             return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root);
         }
 
@@ -126,7 +124,7 @@ namespace Undefined.Serialization
 
         static XSerializer()
         {
-            defaultNamespaces = new XSerializerNamespaceCollection {{"xsi", SerializationHelper.Xsi.NamespaceName}};
+            defaultNamespaces = new XSerializerNamespaceCollection {PrefixUriPair.Xsi};
             defaultParameters = new XSerializerParameters(defaultNamespaces, null);
         }
 

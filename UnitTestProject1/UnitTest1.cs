@@ -41,9 +41,9 @@ namespace UnitTestProject1
         }
 
         [XElement("compositeArray", MyUri1)]
-        [XCollectionItem(typeof (string))]
-        [XCollectionItem(typeof (double))]
-        [XCollectionItem(typeof (MyObject1), "embededObject")]
+        [XCollectionItem(typeof(string))]
+        [XCollectionItem(typeof(double))]
+        [XCollectionItem(typeof(MyObject1), "embededObject")]
         public object[] Array1
         {
             get { return _Array1; }
@@ -58,8 +58,15 @@ namespace UnitTestProject1
         public MyObject1 AnotherObject;
 
         private object[] _Array1;
+        private object _MyObject;
 
-        private string[] Array2 {get; set; }
+
+        [XElement]
+        public object myObject
+        {
+            get { return _MyObject; }
+            set { _MyObject = value; }
+        }
 
         public MyObject1()
         {
@@ -67,15 +74,26 @@ namespace UnitTestProject1
         }
     }
 
+    [XType(null, MyObject1.MyUri1)]
+    public class MyObject2
+    {
+        [XAttribute]
+        public int Value { get; set; }
+    }
+
     [TestClass]
     public class UnitTest1
     {
         [TestMethod]
-        public void SerializationTest1()
+        public void SerializationTest()
         {
-            const int repetitions = 1000;
-            var s = new XSerializer(typeof(MyObject1));
-            var ns = new XSerializerNamespaceCollection { { "n1", MyObject1.MyUri1 }, { "n2", MyObject1.MyUri2 } };
+            var s = new XSerializer(typeof(MyObject1), new[] { typeof(MyObject2) });
+            var ns = new XSerializerNamespaceCollection
+            {
+                {"n1", MyObject1.MyUri1},
+                {"n2", MyObject1.MyUri2},
+                PrefixUriPair.Xsi,
+            };
             var p = new XSerializerParameters(ns);
             var obj = new MyObject1()
             {
@@ -85,16 +103,18 @@ namespace UnitTestProject1
                     "abc",
                     123.4567,
                     "def",
-                    new MyObject1()
+                    new MyObject1(),
+                    new MyObject2(),
                 },
-                AnotherObject = new MyObject1()
+                AnotherObject = new MyObject1(),
+                myObject = new MyObject2()
             };
             //There are intentional spaces left in the strings.
             obj.List1.Add("越过长城，走向世界。    ");
             obj.List1.Add("\t\tAcross the Great Wall we can reach every corner in the world.");
             var doc = s.GetSerializedDocument(obj, p);
             Trace.WriteLine(doc);
-            var obj1 = (MyObject1) s.Deserialize(doc, null);
+            var obj1 = (MyObject1)s.Deserialize(doc, null);
             //Debug.Print("Deserialize Obj : {0}", obj1.GetHashCode());
             Assert.AreEqual(obj.Property1, obj1.Property1);
             Assert.AreEqual(obj.Property1, obj1.Property1);
@@ -102,10 +122,41 @@ namespace UnitTestProject1
             Assert.AreEqual(obj.List1[0], obj1.List1[0]);
             Assert.AreEqual(obj.List1[1], obj1.List1[1]);
             Assert.AreEqual(obj.Array1.Length, obj1.Array1.Length);
+        }
+
+        [TestMethod]
+        public void SerializationProfiling()
+        {
+            const int repetitions = 1000;
+            var s = new XSerializer(typeof(MyObject1));
+            var ns = new XSerializerNamespaceCollection
+            {
+                {"n1", MyObject1.MyUri1},
+                {"n2", MyObject1.MyUri2},
+                PrefixUriPair.Xsi,
+            }; var p = new XSerializerParameters(ns);
+            var obj = new MyObject1()
+            {
+                Property1 = 123e45d,
+                Array1 = new object[]
+                {
+                    "abc",
+                    123.4567,
+                    "def",
+                    new MyObject1(),
+                },
+                AnotherObject = new MyObject1(),
+            };
+            //There are intentional spaces left in the strings.
+            obj.List1.Add("越过长城，走向世界。    ");
+            obj.List1.Add("\t\tAcross the Great Wall we can reach every corner in the world.");
+            var doc = s.GetSerializedDocument(obj, p);
+            Trace.WriteLine(doc);
+            var obj1 = (MyObject1)s.Deserialize(doc, null);
             // Profiling
             for (var i = 0; i < obj.Array1.Length; i++)
             {
-                if (!(obj.Array1[i] is MyObject1))
+                if (obj.Array1[i].GetType().IsValueType)
                     Assert.AreEqual(obj.Array1[i], obj1.Array1[i]);
             }
             var sw = Stopwatch.StartNew();

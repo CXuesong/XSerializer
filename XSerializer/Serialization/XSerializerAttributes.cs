@@ -49,7 +49,7 @@ namespace Undefined.Serialization
         protected XNamedAttributeBase(string localName, string namespaceUri)
         {
             _LocalName = localName;
-            _Namespace = namespaceUri;
+            _Namespace = namespaceUri ?? string.Empty;
         }
 
         protected XNamedAttributeBase() : this(null, null)

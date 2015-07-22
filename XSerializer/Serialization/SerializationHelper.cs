@@ -68,6 +68,8 @@ namespace Undefined.Serialization
         public static XName GetName(Type t)
         {
             Debug.Assert(t != null);
+            XName n;
+            if (simpleTypeNameDict.TryGetValue(t, out n)) return n;
             var attr = t.GetCustomAttribute<XTypeAttribute>();
             if (attr != null) return attr.GetName(attr.LocalName == null ? GetNameDirect(t) : null);
             return GetNameDirect(t);
@@ -209,40 +211,41 @@ namespace Undefined.Serialization
                 throw new InvalidCastException(String.Format(Prompts.InvalidObjectType, actual, desired));
         }
 
-        private static Type[] _SimpleTypes;
+        private static Dictionary<Type, XName> simpleTypeNameDict;
         /// <summary>
         /// 获取可直接序列化的简单类型列表。
         /// Gets a list of types that can be serialized directly.
         /// </summary>
-        public static Type[] SimpleTypes
+        public static Dictionary<Type, XName> SimpleTypes
         {
             get
             {
-                if (_SimpleTypes == null)
+                if (simpleTypeNameDict == null)
                 {
-                    _SimpleTypes = new[]
+                    simpleTypeNameDict = new Dictionary<Type, XName>
                     {
-                        typeof (Object),
-                        typeof (String),
-                        typeof (Byte),
-                        typeof (SByte),
-                        typeof (Int16),
-                        typeof (UInt16),
-                        typeof (Int32),
-                        typeof (UInt32),
-                        typeof (Int64),
-                        typeof (UInt64),
-                        typeof (Single),
-                        typeof (Double),
-                        typeof (IntPtr),
-                        typeof (UIntPtr),
-                        typeof (DateTime),
-                        typeof (TimeSpan),
-                        typeof (DateTimeOffset),
-                        typeof (Guid)
+                        //Object can be inherited.
+                        //{typeof (Object), Xsi + "Object"},
+                        {typeof (String), Xsi + "string"},
+                        {typeof (Byte), Xsi + "unsignedByte"},
+                        {typeof (SByte), Xsi + "byte"},
+                        {typeof (Int16), Xsi + "short"},
+                        {typeof (UInt16), Xsi + "unsignedShort"},
+                        {typeof (Int32), Xsi + "int"},
+                        {typeof (UInt32), Xsi + "unsignedInt"},
+                        {typeof (Int64), Xsi + "long"},
+                        {typeof (UInt64), Xsi + "unsignedLong"},
+                        {typeof (Single), Xsi + "float"},
+                        {typeof (Double), Xsi + "double"},
+                        {typeof (IntPtr), Xsi + "integer"},
+                        {typeof (UIntPtr), Xsi + "UIntPtr"},
+                        {typeof (DateTime), Xsi + "dateTime"},
+                        {typeof (TimeSpan), Xsi + "duration"},
+                        {typeof (DateTimeOffset), "DateTimeOffset"},
+                        {typeof (Guid), Xsi + "guid"}
                     };
                 }
-                return _SimpleTypes;
+                return simpleTypeNameDict;
             }
         }
 
@@ -261,7 +264,7 @@ namespace Undefined.Serialization
             //对于 Nullable 的处理。
             if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(Nullable<>))
                 return IsSimpleType(t.GenericTypeArguments[0]);
-            return SimpleTypes.Contains(t);
+            return SimpleTypes.ContainsKey(t);
         }
 
         public static TypeSerializationKind GetSerializationKind(Type t)

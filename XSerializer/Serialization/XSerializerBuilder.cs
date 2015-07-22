@@ -515,20 +515,22 @@ namespace Undefined.Serialization
         {
             typeDict = new Dictionary<Type, TypeSerializer>();
             _GlobalScope = new SerializationScope("global");
-            foreach (var t in SerializationHelper.SimpleTypes)
-                _GlobalScope.AddType(SerializationHelper.GetName(t), t);
+            //注册内置的简单类型。
+            foreach (var p in SerializationHelper.SimpleTypes)
+                _GlobalScope.AddType(p.Value, p.Key);
         }
 
         #endregion
 
-        public XElement Serialize(object obj, object context)
+        public XElement Serialize(object obj, object context, XSerializerNamespaceCollection namespaces)
         {
             if (obj == null) throw new ArgumentNullException("obj");
+            if (namespaces == null) throw new ArgumentNullException("namespaces");
             Debug.Assert(rootType != null);
             if (!rootType.IsInstanceOfType(obj))
                 throw new InvalidCastException(string.Format(Prompts.InvalidObjectType, obj.GetType(), rootType));
             var state = new XSerializationState(new StreamingContext(StreamingContextStates.Persistence, context), this);
-            return state.SerializeRoot(obj, rootType, rootName ?? _GlobalScope.GetName(rootType));
+            return state.SerializeRoot(obj, rootType, rootName ?? _GlobalScope.GetName(rootType), namespaces);
         }
 
         public object Deserialize(XElement e, object context)

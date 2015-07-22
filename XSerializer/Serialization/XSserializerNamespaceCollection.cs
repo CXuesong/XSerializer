@@ -9,12 +9,19 @@ using System.Xml.Linq;
 namespace Undefined.Serialization
 {
     /// <summary>
+    /// 表示一个 XML 命名空间前缀以及与之对应的 URI。
     /// Represents an XML namespace prefix and its corresponding URI.
     /// </summary>
     public struct PrefixUriPair
     {
         private readonly string _Prefix;
         private readonly string _Uri;
+
+        /// <summary>
+        /// 表示 xsi 的命名空间前缀以及对应的 URI。
+        /// Represents xsi namespace and its corresponding URI.
+        /// </summary>
+        public static readonly PrefixUriPair Xsi = new PrefixUriPair("xsi", SerializationHelper.Xsi.NamespaceName);
 
         public string Prefix
         {

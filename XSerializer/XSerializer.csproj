@@ -54,7 +54,7 @@
     </Compile>
     <Compile Include="Serialization\SerializationHelper.cs" />
     <Compile Include="Serialization\XSerializerBuilder.cs" />
-    <Compile Include="Serialization\XSerializationContext.cs" />
+    <Compile Include="Serialization\XSerializationState.cs" />
     <Compile Include="Serialization\XSerializer.cs" />
     <Compile Include="Serialization\XSserializerNamespaceCollection.cs" />
     <Compile Include="Serialization\XSerializerAttributes.cs" />

@@ -27,7 +27,6 @@ namespace Undefined.Serialization
 
         private XSerializerBuilder _Builder;
 
-
         // typeScope is applied for child items, rather than obj itself.
         private XElement SerializeXElement(object obj, Type defaultType, XName name, SerializationScope typeScope)
         {
@@ -36,13 +35,15 @@ namespace Undefined.Serialization
             var objTypeName = _Builder.GlobalScope.GetName(objType);
             if (objTypeName == null)
                 throw new NotSupportedException(string.Format(Prompts.UnregisteredType, objType, _Builder.GlobalScope));
-
             var s = _Builder.GetSerializer(objType);
             var e = new XElement(name);
             //如果名义类型和实际类型不同，则注明实际类型。
             //如果是 TypeScope 中未定义的类型，则使用对应的元素名，而不使用 xsi:type
             if (name != objTypeName && objType != defaultType)
-                e.SetAttributeValue(SerializationHelper.Xsi + "type", objTypeName);
+            {
+                //先将 XName 加入批注，到根节点中处理。
+                e.AddAnnotation(objTypeName);
+            }
             //一般不会调用到此处，除非 obj 是根部节点，或是集合中的一项。
             if (s == null)
                 switch (SerializationHelper.GetSerializationKind(objType))
@@ -67,15 +68,46 @@ namespace Undefined.Serialization
             Debug.Print("{0}", a);
         }
 
-        public XElement SerializeRoot(object obj, Type rootType, XName name)
+        public XElement SerializeRoot(object obj, Type rootType, XName name, XSerializerNamespaceCollection namespaces)
         {
             Debug.Assert(rootType.IsInstanceOfType(obj));
-            return SerializeXElement(obj, rootType, name, null);
+            Debug.Assert(namespaces != null);
+            var root = SerializeXElement(obj, rootType, name, null);
+            //导入命名空间。
+            foreach (var ns in namespaces)
+                root.SetAttributeValue(XNamespace.Xmlns + ns.Prefix, ns.Uri);
+            //处理导入的类型。
+            var nsCounter = 0;
+            foreach (var descendant in root.Descendants())
+            {
+                var actualTypeName = descendant.Annotation<XName>();
+                if (actualTypeName != null)
+                {
+                    if (actualTypeName.Namespace == descendant.GetDefaultNamespace())
+                    {
+                        descendant.SetAttributeValue(SerializationHelper.Xsi + "type", actualTypeName.LocalName);
+                    }
+                    else
+                    {
+                        var prefix = descendant.GetPrefixOfNamespace(actualTypeName.Namespace);
+                        if (prefix == null)
+                        {
+                            nsCounter++;
+                            prefix = "nss" + nsCounter;
+                            descendant.SetAttributeValue(XNamespace.Xmlns + prefix, actualTypeName.NamespaceName);
+                        }
+                        descendant.SetAttributeValue(SerializationHelper.Xsi + "type", prefix + ":" + actualTypeName.LocalName);
+                    }
+                    descendant.RemoveAnnotations<XName>();
+                }
+            }
+            return root;
         }
 
         // Serialize Collection or Complex objects
         public XElement SerializeXProperty(object obj, Type defaultType, XName name, SerializationScope childItemsTypeScope)
         {
+            //Debug.Print("SP : {0}\t{1}\t{2}", name, obj, childItemsTypeScope);
             if (obj != null) return SerializeXElement(obj, defaultType, name, childItemsTypeScope);
             return null;
         }
@@ -122,7 +154,7 @@ namespace Undefined.Serialization
         {
             Debug.Assert(e != null && defaultType != null);
             // 对于集合，从元素名推理对象类型。
-            var xsiTypeName = (XName)(string)e.Attribute(XsiType);
+            var xsiTypeName = (string)e.Attribute(XsiType);
             Type objType;
             if (xsiTypeName == null)
             {
@@ -132,7 +164,12 @@ namespace Undefined.Serialization
             else
             {
                 //指定了 xsi:type
-                objType = _Builder.GlobalScope.GetType(xsiTypeName);
+                //解析 prefix:localName
+                var parts = xsiTypeName.Split(':');
+                XName xName;
+                if (parts.Length <= 1) xName = e.GetDefaultNamespace() + xsiTypeName;
+                else xName = e.GetNamespaceOfPrefix(parts[0]) + parts[1];
+                objType = _Builder.GlobalScope.GetType(xName);
                 if (objType == null)
                     throw new NotSupportedException(string.Format(Prompts.UnregisteredType, xsiTypeName, typeScope));
             }
