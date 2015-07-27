@@ -31,6 +31,11 @@ namespace Undefined.Serialization
             return Expression.IfThen(condition, ifTrue);
         }
 
+        public static Expression If(this Expression condition, Expression ifTrue, Expression ifFalse)
+        {
+            return Expression.IfThenElse(condition, ifTrue, ifFalse);
+        }
+
         public static Expression Invert(this Expression lhs)
         {
             return Expression.Not(lhs);

@@ -129,13 +129,18 @@ namespace Undefined.Serialization
         }
 
         public XSerializer(Type rootType)
-            : this(rootType, null)
+            : this(rootType, null, null)
         { }
 
-        public XSerializer(Type rootType, IEnumerable<Type> includedTypes)
+        public XSerializer(Type rootType, IEnumerable<Type> includedTypes) 
+            : this(rootType, includedTypes, null)
+        { }
+
+        public XSerializer(Type rootType, IEnumerable<Type> includedTypes, XStringSerializableSurrogateCollection serializableSurrogates)
         {
             if (rootType == null) throw new ArgumentNullException("rootType");
-            builder = new XSerializerBuilder();
+            builder = new XSerializerBuilder(serializableSurrogates);
+            builder.RegisterBuiltInTypes();
             builder.RegisterRootType(rootType);
             if (includedTypes != null)
                 foreach (var t in includedTypes)

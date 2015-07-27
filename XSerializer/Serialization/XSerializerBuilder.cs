@@ -23,10 +23,7 @@ namespace Undefined.Serialization
     /// the behavior of this class may be like XmlSerializer,
     /// in the way that all types to be serialized should be declared
     /// by some means (e.g. by the type of property or field declaration, or
-    /// by XCollectionItemAttribute).  And for the same reason,
-    /// the dependencies between SerializerCache and the properties
-    /// in TypeSerializer should be as few as possible.
-    /// That is, to treat TypeSerializer as only an actuator.
+    /// by XCollectionItemAttribute). 
     /// </summary>
     internal class XSerializerBuilder
     {
@@ -34,11 +31,15 @@ namespace Undefined.Serialization
         private SerializationScope _GlobalScope;
         private Type rootType;
         private XName rootName;
+        private XStringSerializableSurrogateCollection serializableSurrogates;
 
         internal SerializationScope GlobalScope
         {
             get { return _GlobalScope; }
         }
+
+        #region 可序列化类型的注册 | Declaration & Implementation of Type Serializers
+
 
         /// <summary>
         /// 注册指定的类型作为XML文档的根节点。
@@ -73,19 +74,37 @@ namespace Undefined.Serialization
             }
         }
 
-        #region 可序列化类型的注册 | Declaration & Implementation of Type Serializers
-
-
-        private void Register(Type type, TypeSerializer serializer)
+        /// <summary>
+        /// 注册系统的内置类型。
+        /// </summary>
+        public void RegisterBuiltInTypes()
         {
-            Debug.Assert(type != null && serializer != null);
-            typeDict.Add(type, serializer);
+            foreach (var p in SerializationHelper.SimpleTypes)
+                RegisterType(p.Key);
+        }
+
+        private void DeclareType(Type t)
+        {
+            Debug.Assert(t != null);
+            if (_GlobalScope.GetName(t) != null) return;
+            //将此类型加入全局作用域。
+            _GlobalScope.AddType(SerializationHelper.GetName(t), t);
+            //定义面向 Element 节点的序列化函数，包括简单类型。
+            //处理引用项。
+            var serializer = new TypeSerializer(t.ToString());
+            foreach (var attr in t.GetCustomAttributes<XIncludeAttribute>())
+                DeclareType(attr.Type);
+            //此时此类型已经声明了。
+            serializerDecls.Push(new SerializerDeclaration(t, serializer));
+            typeDict.Add(t, serializer);
         }
 
         public TypeSerializer GetSerializer(Type t)
         {
             return GetSerializer(t, false);
         }
+
+        #endregion
 
         public TypeSerializer GetSerializer(Type t, bool noException)
         {
@@ -95,21 +114,13 @@ namespace Undefined.Serialization
             return null;
         }
 
-        private void DeclareType(Type t)
+        public IXStringSerializableSurrogate GetXStringSerializableSurrogate(Type t)
         {
             Debug.Assert(t != null);
-            if (_GlobalScope.GetName(t) != null) return;
-            //将此类型加入全局作用域。
-            GlobalScope.AddType(SerializationHelper.GetName(t), t);
-            if (SerializationHelper.IsSimpleType(t) || typeof(IXStringSerializable).IsAssignableFrom(t))
-                return;
-            var serializer = new TypeSerializer(t.ToString());
-            //处理引用项。
-            foreach (var attr in t.GetCustomAttributes<XIncludeAttribute>())
-                DeclareType(attr.Type);
-            //此时此类型已经声明了。
-            serializerDecls.Push(new SerializerDeclaration(t, serializer));
-            Register(t, serializer);
+            var ut = Nullable.GetUnderlyingType(t);
+            if (ut != null) t = ut;
+            if (t.IsEnum) return EnumXStringSerializableSurrogate.Defualt;
+            return serializableSurrogates == null ? null : serializableSurrogates.FindSurrogate(t);
         }
 
         private Expression ForEach(ParameterExpression i, Expression enumerable, E body)
@@ -155,14 +166,15 @@ namespace Undefined.Serialization
         private static Expression BuildObjectConstructor(Type t, Expression existingObject)
         {
             //寻找合适的构造函数。
+            if (t.IsValueType) return E.Default(t);
             var tConstructor = GetTypeConstructor(t);
-            if (tConstructor == null) 
+            if (tConstructor == null)
                 throw new NotSupportedException(string.Format(Prompts.UnableToDeserialize, t));
             //使用默认的构造函数。
             var localObj = E.Parameter(t, "constructingObj");
-            return E.Block(t, new[] {localObj},
+            return E.Block(t, new[] { localObj },
                 localObj.AssignFrom(existingObject.Cast(t)),
-                SerializationHelper.IsNullable(t)
+                SerializationHelper.IsNullableType(t)
                     ? E.Condition(localObj.EqualsTo(E.Constant(null)), E.New(tConstructor).Cast(t), localObj)
                     : E.New(tConstructor).Cast(t));
         }
@@ -178,7 +190,7 @@ namespace Undefined.Serialization
                     throw new NotSupportedException(string.Format(Prompts.UnableToDeserialize, t));
                 var localSurrogate = E.Parameter(typeof(List<>).MakeGenericType(viType), "surrogate");
                 //对数组使用代理集合（List<T>）。
-                return E.Block(t, new[] {localCollection, localSurrogate},
+                return E.Block(t, new[] { localCollection, localSurrogate },
                     localSurrogate.AssignFrom(E.New(localSurrogate.Type)),
                     addItemsBlockBuilder(localSurrogate),
                     //将集合转换回数组。
@@ -192,6 +204,11 @@ namespace Undefined.Serialization
                 addItemsBlockBuilder(localCollection),
                 localCollection);
         }
+
+        //public static void TestPoint(object v)
+        //{
+        //    Debug.Print("{0}", v);
+        //}
 
         // newValueGenerator : Expression (Expression currentValue)
         private Expression BuildMemberAssigner(E obj, MemberInfo member, Func<E, E> newValueGenerator)
@@ -207,10 +224,23 @@ namespace Undefined.Serialization
             return E.Block(memberType, new[] {localCurrentValue, localNewValue},
                 localCurrentValue.AssignFrom(obj.Member(member)),
                 localNewValue.AssignFrom(newValueGenerator(localCurrentValue)),
-                (SerializationHelper.IsNullable(memberType)
+                (SerializationHelper.IsNullableType(memberType)
                     ? localCurrentValue.NotEqualsTo(localNewValue).IfTrue(assignMemberExpr)
                     : assignMemberExpr),
                 localNewValue);
+        }
+
+        private Expression BuildXSimpleTypeConversion(Expression source, Type destType)
+        {
+            var baseType = Nullable.GetUnderlyingType(destType) ?? destType;
+            if (baseType == typeof(byte)) return source.Cast<uint?>().Cast(destType);
+            if (baseType == typeof(sbyte)) return source.Cast<int?>().Cast(destType);
+            if (baseType == typeof(short)) return source.Cast<int?>().Cast(destType);
+            if (baseType == typeof(ushort)) return source.Cast<uint?>().Cast(destType);
+            if (baseType == typeof(char)) return source.Cast<string>().Cast(destType);
+            if (baseType == typeof(IntPtr)) return source.Cast<long?>().Cast(destType);
+            if (baseType == typeof(UIntPtr)) return source.Cast<ulong?>().Cast(destType);
+            return source.Cast(destType);
         }
 
         /// <summary>
@@ -220,7 +250,6 @@ namespace Undefined.Serialization
         {
             Debug.Assert(serializer != null && t != null);
             var kind = SerializationHelper.GetSerializationKind(t);
-            Debug.Assert(kind != TypeSerializationKind.Simple && kind != TypeSerializationKind.XStringSerializable);
             //void serialize(XName, object, XSerializationState, SerializationScope)
             // Arguments
             var argElement = E.Variable(typeof(XElement), "element");
@@ -239,17 +268,40 @@ namespace Undefined.Serialization
             // Locals
             var localNewValueElem = E.Parameter(typeof(XElement), "newValueElement");
             var localNewValueAttr = E.Parameter(typeof(XElement), "newValueAttribute");
-            var localNewValueStr = E.Parameter(typeof(string), "newValueStr");
-            var locald = new[] { localObj, localNewValueElem, localNewValueAttr, localNewValueStr };
+            var locald = new[] { localObj, localNewValueElem, localNewValueAttr };
             //序列化集合内容。 Serialize collection items.
 #if DEBUG
+            // Assert obj is instance of t, hence not null.
             exprs.Add(E.Invoke((Expression<Action<object>>)(obj => Debug.Assert(t.IsInstanceOfType(obj))), argObj));
 #endif
             exprs.Add(localObj.AssignFrom(argObj.Cast(t)));
+            var surrogate = GetXStringSerializableSurrogate(t);
+            if (surrogate != null)
+            {
+                //存在代理 XString 序列化生成器。
+                exprs.Add(argElement.CallMember("SetValue", E.Constant(surrogate, typeof(IXStringSerializableSurrogate)).CallMember("Serialize", argObj)));
+                exprd.Add(E.Constant(surrogate, typeof(IXStringSerializableSurrogate)).CallMember("Deserialize", argElement.Cast<string>(), E.Constant(t)));
+                goto RETURN_AND_BUILD_LAMBDA;
+            }
+            switch (kind)
+            {
+                case TypeSerializationKind.Simple:
+                    exprs.Add(argElement.CallMember("SetValue", argObj));
+                    exprd.Add(BuildXSimpleTypeConversion(argElement, t).Cast<object>());
+                    goto BUILD_LAMBDA;
+                case TypeSerializationKind.XStringSerializable:
+                    //需要考虑 ValueType 的装箱。
+                    exprs.Add(argElement.CallMember("SetValue", localObj.CallMember(IXStringSerializable_Serialize)));
+                    exprd.Add(argObj.AssignFrom(BuildObjectConstructor(t, argObj).Cast<object>()));
+                    exprd.Add(argObj.Cast<IXStringSerializable>()
+                        .CallMember(IXStringSerializable_Deserialize, argElement.Cast<string>()));
+                    exprd.Add(argObj);
+                    goto BUILD_LAMBDA;
+            }
             // 处理回调函数。 Invoke callbacks.
             var onDeserializingCallbacks = new List<MethodInfo>();
-            foreach (var method in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic 
-                | BindingFlags.Static | BindingFlags.Instance))
+            foreach (var method in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
+                                                | BindingFlags.Static | BindingFlags.Instance))
             {
                 if (method.GetCustomAttribute<OnSerializingAttribute>() != null)
                     exprs.Add(localObj.CallMember(method, argState.Member("Context")));
@@ -268,7 +320,7 @@ namespace Undefined.Serialization
                     argState.CallMember("SerializeXCollectionItem",
                         localEachItem.Cast<object>(), E.Constant(viType), argTypeScope));
                 exprs.Add(ForEach(localEachItem, localObj,
-                   SerializationHelper.IsNullable(viType)
+                    SerializationHelper.IsNullableType(viType)
                         ? localEachItem.NotEqualsTo(E.Constant(null)).IfTrue(tempExpr)
                         : tempExpr
                     ));
@@ -300,7 +352,8 @@ namespace Undefined.Serialization
             {
                 //kind == TypeSerializationKind.Complex
                 exprd.Add(localObj.AssignFrom(BuildObjectConstructor(t, argObj)));
-                exprd.AddRange(onDeserializingCallbacks.Select(m => localObj.CallMember(m, argState.Member("Context"))));
+                exprd.AddRange(
+                    onDeserializingCallbacks.Select(m => localObj.CallMember(m, argState.Member("Context"))));
             }
             //序列化属性/字段。 Serialize property / field.
             var bindingFlags = BindingFlags.GetProperty | BindingFlags.GetField
@@ -336,13 +389,15 @@ namespace Undefined.Serialization
                         BuildCollection(memberType, current,
                             destList =>
                             {
-                                var localEachElement = E.Variable(typeof (XElement), "eachElement");
+                                var localEachElement = E.Variable(typeof(XElement), "eachElement");
                                 var anyElements = E.Invoke(
                                     (Expression<Func<XElement, HashSet<XName>, IEnumerable<XElement>>>)
                                         ((e, k) => e.Elements().Where(ex => !k.Contains(ex.Name))),
                                     argElement, E.Constant(knownElements));
                                 return ForEach(localEachElement, anyElements,
-                                    destList.CallMember(SerializationHelper.FindCollectionAddMethod(memberType), localEachElement));
+                                    destList.CallMember(
+                                        SerializationHelper.FindCollectionAddMethod(memberType),
+                                        localEachElement));
                             })));
                 }
                 //杂项属性。
@@ -362,7 +417,7 @@ namespace Undefined.Serialization
                         BuildCollection(memberType, current,
                             destList =>
                             {
-                                var localEachAttribute = E.Variable(typeof (XAttribute), "eachAttribute");
+                                var localEachAttribute = E.Variable(typeof(XAttribute), "eachAttribute");
                                 var anyAttributes = E.Invoke(
                                     (Expression<Func<XElement, HashSet<XName>, IEnumerable<XAttribute>>>)
                                         ((e, k) => e.Attributes().Where(a =>
@@ -378,107 +433,24 @@ namespace Undefined.Serialization
                 if (eattr != null)
                 {
                     if (anyElemAttr != null || anyAttrAttr != null)
-                        throw new InvalidOperationException(string.Format(
-                            Prompts.InvalidAttributesCombination, member));
-                    var memberKind = SerializationHelper.GetSerializationKind(memberType);
-                    var memberNameExpr = E.Constant(SerializationHelper.GetName(member, eattr));
-                    var localCurrentValue = E.Parameter(memberType, "currentValue");
-                    knownElements.Add((XName) memberNameExpr.Value);
-                    exprd.Add(localNewValueElem.AssignFrom(argElement.CallMember("Element", memberNameExpr)));
-                    switch (memberKind)
-                    {
-                        case TypeSerializationKind.Simple:
-                            exprs.Add(argElement.CallMember("SetElementValue", memberNameExpr,
-                                localObj.Member(member).Cast<object>()));
-                            exprd.Add(localNewValueElem.NotEqualsTo(E.Constant(null)).IfTrue(
-                                localObj.Member(member).AssignFrom(localNewValueElem.Cast(memberType))));
-                            break;
-                        case TypeSerializationKind.XStringSerializable:
-                            exprs.Add(argElement.CallMember("SetElementValue", memberNameExpr,
-                                localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
-                            //Deserialize
-                            exprd.Add(localNewValueStr.AssignFrom(localNewValueElem.Cast<string>()));
-                            exprd.Add(localNewValueElem.NotEqualsTo(E.Constant(null)).IfTrue(
-                                BuildMemberAssigner(localObj, member, current =>
-                                    BuildObjectConstructor(memberType, localCurrentValue))
-                                    .CallMember(IXStringSerializable_Deserialize, localNewValueStr)));
-                            break;
-                        case TypeSerializationKind.Collection:
-                        case TypeSerializationKind.Complex:
-                            DeclareType(memberType);
-                            if (t.IsValueType && SerializationHelper.IsMemberReadOnly(member)) 
-                                throw new NotSupportedException(string.Format(Prompts.StrcutureReadonly, t));
-                            SerializationScope scope = null;
-                            if (memberKind == TypeSerializationKind.Collection)
-                            {
-                                //注册集合项目的类型。
-                                //Register types of ollection items.
-                                // IEnumerable<T> => T
-                                var viType = SerializationHelper.GetCollectionItemType(memberType);
-                                var viTypeRegistered = false;
-                                scope = new SerializationScope(member + " (" + member.DeclaringType + ")");
-                                foreach (var colAttr in member.GetCustomAttributes<XCollectionItemAttribute>())
-                                {
-                                    var thisType = colAttr.Type ?? viType;
-                                    scope.AddType(colAttr.GetName(SerializationHelper.GetName(thisType)), thisType);
-                                    DeclareType(t);
-                                    if (thisType == viType) viTypeRegistered = true;
-                                }
-                                if (!viTypeRegistered)
-                                {
-                                    scope.AddType(SerializationHelper.GetName(viType), viType);
-                                    DeclareType(viType);
-                                }
-                            }
-                            exprs.Add(argElement.CallMember("Add",
-                                argState.CallMember("SerializeXProperty", localObj.Member(member).Cast<object>(), E.Constant(memberType),
-                                    E.Constant(SerializationHelper.GetName(member, eattr)),
-                                    E.Constant(scope, typeof(SerializationScope)))));
-                            //Deserialize
-                            exprd.Add(localNewValueElem.NotEqualsTo(E.Constant(null)).IfTrue(
-                                BuildMemberAssigner(localObj, member, current => 
-                                    argState.CallMember("DeserializeXProperty",
-                                        localNewValueElem,
-                                        current.Cast<object>(), E.Constant(memberType),
-                                        E.Constant(scope, typeof (SerializationScope))).Cast(memberType)
-                                    )));
-                            break;
-                    }
+                        throw new InvalidOperationException(string.Format(Prompts.InvalidAttributesCombination,
+                            member));
+                    var ms = BuildMemberSerializer(member, argElement, argState, localObj);
+                    knownElements.Add(ms.Item1);
+                    exprs.Add(ms.Item2);
+                    exprd.Add(ms.Item3);
                 }
                 //属性。
                 var aattr = member.GetCustomAttribute<XAttributeAttribute>();
                 if (aattr != null)
                 {
                     if (eattr != null || anyElemAttr != null || anyAttrAttr != null)
-                        throw new InvalidOperationException(string.Format(
-                            Prompts.InvalidAttributesCombination, member));
-                    var memberNameExpr = E.Constant(SerializationHelper.GetName(member, aattr));
-                    var localCurrentValue = E.Parameter(memberType, "currentValue");
-                    knownAttributes.Add((XName)memberNameExpr.Value);
-                    exprd.Add(localNewValueAttr.AssignFrom(argElement.CallMember("Element", memberNameExpr)));
-                    switch (SerializationHelper.GetSerializationKind(memberType))
-                    {
-                        case TypeSerializationKind.Simple:
-                            exprs.Add(argElement.CallMember("SetAttributeValue", memberNameExpr,
-                                localObj.Member(member).Cast<object>()));
-                            exprd.Add(localNewValueAttr.NotEqualsTo(E.Constant(null)).IfTrue(
-                                localObj.Member(member).AssignFrom(localNewValueAttr.Cast(memberType))));
-                            break;
-                        case TypeSerializationKind.XStringSerializable:
-                            exprs.Add(argElement.CallMember("SetAttributeValue", memberNameExpr,
-                                localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
-                            //Deserialize
-                            exprd.Add(localNewValueStr.AssignFrom(localNewValueAttr.Cast<string>()));
-                            exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(
-                                BuildMemberAssigner(localObj, member, current =>
-                                    BuildObjectConstructor(memberType, localCurrentValue))
-                                    .CallMember(IXStringSerializable_Deserialize, localNewValueStr)));
-                            break;
-                        case TypeSerializationKind.Collection:
-                        case TypeSerializationKind.Complex:
-                            //无法序列化复杂类型和集合。
-                            throw new InvalidOperationException(string.Format(Prompts.CannotSerializeAsAttribute, member));
-                    }
+                        throw new InvalidOperationException(string.Format(Prompts.InvalidAttributesCombination,
+                            member));
+                    var ms = BuildMemberSerializer(member, argElement, argState, localObj);
+                    knownAttributes.Add(ms.Item1);
+                    exprs.Add(ms.Item2);
+                    exprd.Add(ms.Item3);
                 }
             }
             // 处理回调函数。 Invoke callbacks.
@@ -490,13 +462,141 @@ namespace Undefined.Serialization
                 if (method.GetCustomAttribute<OnDeserializedAttribute>() != null)
                     exprd.Add(localObj.CallMember(method, argState.Member("Context")));
             }
-            // 别忘了反序列化的返回值。
-            exprd.Add(localObj);
+        RETURN_AND_BUILD_LAMBDA:
+            // 别忘了反序列化的返回值（装箱）。
+            exprd.Add(localObj.Cast<object>());
+        BUILD_LAMBDA:
             // 编译。
             var serializerLambda = E.Lambda(E.Block(typeof(void), locals, exprs), argElement, argObj, argState, argTypeScope);
             serializer.RegisterSerializeXElementAction(serializerLambda.Compile());
             var deserializerLambda = E.Lambda(E.Block(typeof(object), locald, exprd), argElement, argObj, argState, argTypeScope);
             serializer.RegisterDeserializeXElementAction(deserializerLambda.Compile());
+        }
+
+        // name, serializer, deserializer
+        private Tuple<XName, Expression, Expression>
+            BuildMemberSerializer(MemberInfo member, ParameterExpression argElement, ParameterExpression argState, ParameterExpression localObj)
+        {
+            var eattr = member.GetCustomAttribute<XElementAttribute>();
+            var aattr = member.GetCustomAttribute<XAttributeAttribute>();
+            Debug.Assert(eattr != null || aattr != null);
+            if (eattr != null && aattr != null)
+                throw new InvalidOperationException(string.Format(Prompts.InvalidAttributesCombination, member));
+            var isAttribute = aattr != null;
+            var memberType = SerializationHelper.GetMemberValueType(member);
+            var localNewValueStr = E.Parameter(typeof(string), "newValueStr");
+            var localNewValueXObj = E.Parameter(isAttribute ? typeof(XAttribute) : typeof(XElement), "newValueXObject");
+            var memberKind = SerializationHelper.GetSerializationKind(memberType);
+            var memberNameExpr = E.Constant(SerializationHelper.GetName(member, (XNamedAttributeBase)eattr ?? aattr));
+            var exprs = new List<Expression>();
+            var exprd = new List<Expression>();
+            exprd.Add(localNewValueXObj.AssignFrom(
+                argElement.CallMember(isAttribute ? "Attribute" : "Element", memberNameExpr)));
+            var surrogate = GetXStringSerializableSurrogate(memberType);
+            if (surrogate != null)
+            {
+                //存在代理 XString 序列化生成器。
+                exprs.Add(argElement.CallMember(isAttribute ? "SetAttributeValue" : "SetElementValue", memberNameExpr,
+                    E.Constant(surrogate, typeof (IXStringSerializableSurrogate))
+                        .CallMember("Serialize", localObj.Member(member).Cast<object>())));
+                exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
+                exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(
+                    BuildMemberAssigner(localObj, member, current =>
+                        E.Constant(surrogate, typeof (IXStringSerializableSurrogate))
+                            .CallMember("Deserialize", localNewValueStr, E.Constant(memberType)).Cast(memberType))));
+                goto BUILD_BLOCK;
+            }
+            switch (memberKind)
+            {
+                case TypeSerializationKind.Simple:
+                    exprs.Add(argElement.CallMember(isAttribute ? "SetAttributeValue" : "SetElementValue", memberNameExpr,
+                        localObj.Member(member).Cast<object>()));
+                    exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).IfTrue(
+                        localObj.Member(member).AssignFrom(BuildXSimpleTypeConversion(localNewValueXObj, memberType))));
+                    break;
+                case TypeSerializationKind.XStringSerializable:
+                    if (isAttribute)
+                    {
+                        exprs.Add(argElement.CallMember("SetAttributeValue", memberNameExpr,
+                            localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
+                        //Deserialize
+                        exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
+                    }
+                    else
+                    {
+                        exprs.Add(argElement.CallMember("SetElementValue", memberNameExpr,
+                            localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
+                        //Deserialize
+                        exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
+                    }
+                    //在反序列化时需要显式将 ValueType 装箱。
+                    var localBoxedValue = E.Parameter(typeof(object), "boxedValue");
+                    exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(
+                        BuildMemberAssigner(localObj, member, current =>
+                            E.Block(new[] {localBoxedValue},
+                                localBoxedValue.AssignFrom(BuildObjectConstructor(memberType, current).Cast<object>()),
+                                localBoxedValue.Cast<IXStringSerializable>().CallMember(
+                                    IXStringSerializable_Deserialize, localNewValueStr),
+                                localBoxedValue.Cast(memberType)))));
+                    break;
+                case TypeSerializationKind.Collection:
+                case TypeSerializationKind.Complex:
+                    DeclareType(memberType);
+                    if (isAttribute)
+                    {
+                        //无法序列化复杂类型和集合。
+                        throw new InvalidOperationException(string.Format(Prompts.CannotSerializeAsAttribute, member));
+
+                    }
+                    else
+                    {
+                        if (memberType.IsValueType && SerializationHelper.IsMemberReadOnly(member))
+                            throw new NotSupportedException(string.Format(Prompts.StrcutureReadonly, member));
+                        SerializationScope scope = null;
+                        if (memberKind == TypeSerializationKind.Collection)
+                        {
+                            //注册集合项目的类型。
+                            //Register types of ollection items.
+                            // IEnumerable<T> => T
+                            var viType = SerializationHelper.GetCollectionItemType(memberType);
+                            var viTypeRegistered = false;
+                            scope = new SerializationScope(member + " (" + member.DeclaringType + ")");
+                            foreach (var colAttr in member.GetCustomAttributes<XCollectionItemAttribute>())
+                            {
+                                var thisType = colAttr.Type ?? viType;
+                                scope.AddType(colAttr.GetName(SerializationHelper.GetName(thisType)), thisType);
+                                DeclareType(thisType);
+                                if (thisType == viType) viTypeRegistered = true;
+                            }
+                            if (!viTypeRegistered)
+                            {
+                                scope.AddType(SerializationHelper.GetName(viType), viType);
+                                DeclareType(viType);
+                            }
+                        }
+                        exprs.Add(argElement.CallMember("Add",
+                            argState.CallMember("SerializeXProperty", localObj.Member(member).Cast<object>(), E.Constant(memberType),
+                                E.Constant(SerializationHelper.GetName(member, eattr)),
+                                E.Constant(scope, typeof(SerializationScope)))));
+                        //Deserialize
+                        exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).IfTrue(
+                            BuildMemberAssigner(localObj, member, current =>
+                                argState.CallMember("DeserializeXProperty",
+                                    localNewValueXObj,
+                                    current.Cast<object>(), E.Constant(memberType),
+                                    E.Constant(scope, typeof(SerializationScope))).Cast(memberType)
+                                )));
+                    }
+                    break;
+            }
+            BUILD_BLOCK:
+            // 编译。
+            var serializerBlock =
+                E.Block(new[] { localNewValueStr, localNewValueXObj }, exprs);
+            var deserializerBlock =
+                E.Block(new[] { localNewValueStr, localNewValueXObj }, exprd);
+            return Tuple.Create<XName, Expression, Expression>((XName)memberNameExpr.Value,
+                serializerBlock, deserializerBlock);
         }
 
         private struct SerializerDeclaration
@@ -510,17 +610,6 @@ namespace Undefined.Serialization
             }
         }
         private Stack<SerializerDeclaration> serializerDecls = new Stack<SerializerDeclaration>();
-
-        public XSerializerBuilder()
-        {
-            typeDict = new Dictionary<Type, TypeSerializer>();
-            _GlobalScope = new SerializationScope("global");
-            //注册内置的简单类型。
-            foreach (var p in SerializationHelper.SimpleTypes)
-                _GlobalScope.AddType(p.Value, p.Key);
-        }
-
-        #endregion
 
         public XElement Serialize(object obj, object context, XSerializerNamespaceCollection namespaces)
         {
@@ -541,6 +630,14 @@ namespace Undefined.Serialization
             Debug.Assert(rootType.IsInstanceOfType(obj));
             return obj;
         }
+        public XSerializerBuilder(XStringSerializableSurrogateCollection surrogates)
+        {
+            //Debug.Assert(surrogates != null);
+            typeDict = new Dictionary<Type, TypeSerializer>();
+            _GlobalScope = new SerializationScope("global");
+            serializableSurrogates = surrogates;
+        }
+
     }
 
     internal enum TypeSerializationKind
@@ -590,7 +687,7 @@ namespace Undefined.Serialization
         {
             Debug.Assert(d != null);
             serialzeXElementAction =
-                (Action<XElement, object, XSerializationState, SerializationScope>) d;
+                (Action<XElement, object, XSerializationState, SerializationScope>)d;
         }
 
         public void RegisterDeserializeXElementAction(Delegate d)
@@ -621,7 +718,7 @@ namespace Undefined.Serialization
             Debug.Assert(e != null && state != null);
             if (e.Name.LocalName == "compositeArray")
             {
-                
+
             }
             return deserialzeXElementAction(e, obj, state, typeScope);
         }
@@ -669,6 +766,17 @@ namespace Undefined.Serialization
         public SerializationScope(string scopeName)
         {
             _ScopeName = scopeName;
+        }
+    }
+
+    internal class SerializationRootHelper<T>
+    {
+        [XElement("root")]
+        public T Root;
+
+        public SerializationRootHelper(T root)
+        {
+            Root = root;
         }
     }
 }

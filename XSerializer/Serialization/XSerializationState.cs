@@ -18,14 +18,14 @@ namespace Undefined.Serialization
     {
         private static readonly XName XsiType = SerializationHelper.Xsi + "type";
 
+        private XSerializerBuilder _Builder;
+
         private StreamingContext _Context;
 
         public StreamingContext Context
         {
             get { return _Context; }
         }
-
-        private XSerializerBuilder _Builder;
 
         // typeScope is applied for child items, rather than obj itself.
         private XElement SerializeXElement(object obj, Type defaultType, XName name, SerializationScope typeScope)
@@ -46,17 +46,7 @@ namespace Undefined.Serialization
             }
             //一般不会调用到此处，除非 obj 是根部节点，或是集合中的一项。
             if (s == null)
-                switch (SerializationHelper.GetSerializationKind(objType))
-                {
-                    case TypeSerializationKind.Simple:
-                        e.SetValue(obj);
-                        return e;
-                    case TypeSerializationKind.XStringSerializable:
-                        e.SetValue(((IXStringSerializable)obj).Serialize());
-                        return e;
-                    default:
-                        throw new NotSupportedException(string.Format(Prompts.UnregisteredType, objType, typeScope));
-                }
+                throw new NotSupportedException(string.Format(Prompts.UnregisteredType, objType, typeScope));
             EnterObjectSerialization(obj);
             s.Serialize(e, obj, this, typeScope);
             ExitObjectSerialization(obj);
@@ -174,20 +164,8 @@ namespace Undefined.Serialization
                     throw new NotSupportedException(string.Format(Prompts.UnregisteredType, xsiTypeName, typeScope));
             }
             var s = _Builder.GetSerializer(objType);
-            //一般不会调用到此处，除非 obj 是根部节点，或是集合中的一项。
             if (s == null)
-                switch (SerializationHelper.GetSerializationKind(objType))
-                {
-                    case TypeSerializationKind.Simple:
-                        return SerializationHelper.GetExplicitOperator(typeof (XElement), objType)
-                            .Invoke(null, new object[] {e});
-                    case TypeSerializationKind.XStringSerializable:
-                        if (obj == null) obj = Activator.CreateInstance(objType);
-                        ((IXStringSerializable) obj).Deserialize((string) e);
-                        return obj;
-                    default:
-                        throw new NotSupportedException(string.Format(Prompts.UnregisteredType, objType, typeScope));
-                }
+                throw new NotSupportedException(string.Format(Prompts.UnregisteredType, objType, typeScope));
             return s.Deserialize(e, obj, this, typeScope);
         }
 

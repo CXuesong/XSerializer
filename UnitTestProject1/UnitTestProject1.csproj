@@ -36,6 +36,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Xml.Linq" />
   </ItemGroup>
@@ -58,6 +59,7 @@
     <Compile Include="Simple2.cs" />
     <Compile Include="AnyElementTest.cs" />
     <Compile Include="CallbackTest.cs" />
+    <Compile Include="XStringSerializableTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\XSerializer\XSerializer.csproj">
