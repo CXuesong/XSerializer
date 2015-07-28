@@ -7,9 +7,9 @@ using Undefined.Serialization;
 namespace UnitTestProject1
 {
     [TestClass]
-    public class Simple2
+    public class DictionaryTest
     {
-        public class SimpleObject2
+        public class ClassWithDictionary
         {
             private Dictionary<int, string> _Dict = new Dictionary<int, string>();
 
@@ -20,17 +20,17 @@ namespace UnitTestProject1
             }
         }
 
-        //[TestMethod]
+        [TestMethod]
         public void TestMethod1()
         {
-            var s = new XSerializer(typeof(SimpleObject2));
-            var obj = new SimpleObject2();
+            var s = new XSerializer(typeof(ClassWithDictionary));
+            var obj = new ClassWithDictionary();
             obj.Dict[10] = "alpha";
             obj.Dict[20] = "beta";
             obj.Dict[100] = "gamma";
             var doc = s.GetSerializedDocument(obj);
             Trace.WriteLine(doc);
-            var obj1 = (SimpleObject2)s.Deserialize(doc, null);
+            var obj1 = (ClassWithDictionary)s.Deserialize(doc, null);
             foreach (var key in obj.Dict.Keys)
                 Assert.AreEqual(obj.Dict[key], obj1.Dict[key]);
         }

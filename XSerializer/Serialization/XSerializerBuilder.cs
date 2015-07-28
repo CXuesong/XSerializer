@@ -103,25 +103,12 @@ namespace Undefined.Serialization
         {
             return GetSerializer(t, false);
         }
-
         #endregion
 
-        public TypeSerializer GetSerializer(Type t, bool noException)
-        {
-            TypeSerializer s;
-            if (typeDict.TryGetValue(t, out s))
-                return s;
-            return null;
-        }
-
-        public IXStringSerializableSurrogate GetXStringSerializableSurrogate(Type t)
-        {
-            Debug.Assert(t != null);
-            var ut = Nullable.GetUnderlyingType(t);
-            if (ut != null) t = ut;
-            if (t.IsEnum) return EnumXStringSerializableSurrogate.Defualt;
-            return serializableSurrogates == null ? null : serializableSurrogates.FindSurrogate(t);
-        }
+        #region 序列化过程生成 | Serialization Procedure Builder
+        private static MethodInfo IEnumerator_MoveNext = typeof(IEnumerator).GetMethod("MoveNext");
+        private static MethodInfo IXStringSerializable_Serialize = typeof(IXStringSerializable).GetMethod("Serialize");
+        private static MethodInfo IXStringSerializable_Deserialize = typeof(IXStringSerializable).GetMethod("Deserialize");
 
         private Expression ForEach(ParameterExpression i, Expression enumerable, E body)
         {
@@ -141,10 +128,6 @@ namespace Undefined.Serialization
                     E.Block(i.AssignFrom(localEnum.Member("Current")), body),
                     E.Break(labelExitFor)), labelExitFor));
         }
-
-        private static MethodInfo IEnumerator_MoveNext = typeof(IEnumerator).GetMethod("MoveNext");
-        private static MethodInfo IXStringSerializable_Serialize = typeof(IXStringSerializable).GetMethod("Serialize");
-        private static MethodInfo IXStringSerializable_Deserialize = typeof(IXStringSerializable).GetMethod("Deserialize");
 
         private static ConstructorInfo GetTypeConstructor(Type t)
         {
@@ -204,11 +187,6 @@ namespace Undefined.Serialization
                 addItemsBlockBuilder(localCollection),
                 localCollection);
         }
-
-        //public static void TestPoint(object v)
-        //{
-        //    Debug.Print("{0}", v);
-        //}
 
         // newValueGenerator : Expression (Expression currentValue)
         private Expression BuildMemberAssigner(E obj, MemberInfo member, Func<E, E> newValueGenerator)
@@ -314,39 +292,56 @@ namespace Undefined.Serialization
                 //处理集合类型中包含的项目。
                 var viType = SerializationHelper.GetCollectionItemType(t);
                 DeclareType(viType);
-                // Serialize
-                var localEachItem = E.Variable(viType, "eachItem");
-                var tempExpr = argElement.CallMember("Add",
-                    argState.CallMember("SerializeXCollectionItem",
-                        localEachItem.Cast<object>(), E.Constant(viType), argTypeScope));
-                exprs.Add(ForEach(localEachItem, localObj,
-                    SerializationHelper.IsNullableType(viType)
-                        ? localEachItem.NotEqualsTo(E.Constant(null)).IfTrue(tempExpr)
-                        : tempExpr
-                    ));
-                // Deserialize
-                exprd.Add(localObj.AssignFrom(BuildCollection(t, argObj, destList =>
+                if (SerializationHelper.IsDictionary(t))
                 {
-                    var localEachElement = E.Variable(typeof(XElement), "eachElement");
-                    if (SerializationHelper.IsDictionary(t))
+                    // Serialize
+                    //var localEachItem = E.Variable(viType, "eachItem");
+                    //var tempExpr = argElement.CallMember("Add",
+                    //    argState.CallMember("SerializeXCollectionItem",
+                    //        localEachItem.Cast<object>(), E.Constant(viType), argTypeScope));
+                    //exprs.Add(ForEach(localEachItem, localObj,
+                    //    SerializationHelper.IsNullableType(viType)
+                    //        ? localEachItem.NotEqualsTo(E.Constant(null)).IfTrue(tempExpr)
+                    //        : tempExpr
+                    //    ));
+                    throw new NotImplementedException("IDictionary is not supported yet.");
+                }
+                else
+                {
+                    // Serialize
+                    var localEachItem = E.Variable(viType, "eachItem");
+                    var tempExpr = argElement.CallMember("Add",
+                        argState.CallMember("SerializeXCollectionItem",
+                            localEachItem.Cast<object>(), E.Constant(viType), argTypeScope));
+                    exprs.Add(ForEach(localEachItem, localObj,
+                        SerializationHelper.IsNullableType(viType)
+                            ? localEachItem.NotEqualsTo(E.Constant(null)).IfTrue(tempExpr)
+                            : tempExpr
+                        ));
+                    // Deserialize
+                    exprd.Add(localObj.AssignFrom(BuildCollection(t, argObj, destList =>
                     {
-                        //is a dictionary
-                        //TODO: Build appropriate logic to construct KeyValuePair
-                        // or using IDictionary.Add
-                        throw new NotSupportedException("IDictionary is currently not supported.");
-                    }
-                    var coreExpr = ForEach(localEachElement, argElement.CallMember("Elements"),
-                        destList.CallMember(SerializationHelper.FindCollectionAddMethod(t),
-                            argState.CallMember("DeserializeXCollectionItem",
-                                localEachElement, argTypeScope).Cast(viType)));
-                    if (onDeserializingCallbacks.Count > 0 && t.IsAssignableFrom(destList.Type))
-                    {
-                        //集合刚刚初始化完毕后，调用回调函数，然后再添加项目。
-                        return E.Block(E.Block(onDeserializingCallbacks.Select(
-                            m => localObj.CallMember(m, argState.Member("Context")))), coreExpr);
-                    }
-                    return coreExpr;
-                })));
+                        var localEachElement = E.Variable(typeof (XElement), "eachElement");
+                        if (SerializationHelper.IsDictionary(t))
+                        {
+                            //is a dictionary
+                            //TODO: Build appropriate logic to construct KeyValuePair
+                            // or using IDictionary.Add
+                            throw new NotSupportedException("IDictionary is currently not supported.");
+                        }
+                        var coreExpr = ForEach(localEachElement, argElement.CallMember("Elements"),
+                            destList.CallMember(SerializationHelper.FindCollectionAddMethod(t),
+                                argState.CallMember("DeserializeXCollectionItem",
+                                    localEachElement, argTypeScope).Cast(viType)));
+                        if (onDeserializingCallbacks.Count > 0 && t.IsAssignableFrom(destList.Type))
+                        {
+                            //集合刚刚初始化完毕后，调用回调函数，然后再添加项目。
+                            return E.Block(E.Block(onDeserializingCallbacks.Select(
+                                m => localObj.CallMember(m, argState.Member("Context")))), coreExpr);
+                        }
+                        return coreExpr;
+                    })));
+                }
             }
             else
             {
@@ -472,6 +467,29 @@ namespace Undefined.Serialization
             var deserializerLambda = E.Lambda(E.Block(typeof(object), locald, exprd), argElement, argObj, argState, argTypeScope);
             serializer.RegisterDeserializeXElementAction(deserializerLambda.Compile());
         }
+
+        #endregion
+        public TypeSerializer GetSerializer(Type t, bool noException)
+        {
+            TypeSerializer s;
+            if (typeDict.TryGetValue(t, out s))
+                return s;
+            return null;
+        }
+
+        public IXStringSerializableSurrogate GetXStringSerializableSurrogate(Type t)
+        {
+            Debug.Assert(t != null);
+            var ut = Nullable.GetUnderlyingType(t);
+            if (ut != null) t = ut;
+            if (t.IsEnum) return EnumXStringSerializableSurrogate.Defualt;
+            return serializableSurrogates == null ? null : serializableSurrogates.FindSurrogate(t);
+        }
+
+        //public static void TestPoint(object v)
+        //{
+        //    Debug.Print("{0}", v);
+        //}
 
         // name, serializer, deserializer
         private Tuple<XName, Expression, Expression>
@@ -780,3 +798,4 @@ namespace Undefined.Serialization
         }
     }
 }
+
