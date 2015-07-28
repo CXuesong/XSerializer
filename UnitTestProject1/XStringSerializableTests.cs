@@ -101,7 +101,7 @@ namespace UnitTestProject1
         [TestMethod]
         public void SerializeARectangle()
         {
-            var surrogates = new XStringSerializableSurrogateCollection()
+            var surrogates = new XSerializableSurrogateCollection()
             {
                 new ColorXSSSurrogate(),
             };

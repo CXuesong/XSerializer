@@ -13,8 +13,11 @@ Basic goals have been reached. It may be a stable version now.
 	* Supports property/field that uses another class as type.
 	* Supports collections that implements `IEnumerable`.
 * Serialized collecions can have attributes.
-* Complex classes can be converted to / back from string and stored in attributes.
-	(By implementing `IXStringSerializable`)
+* Supports custom serialization implementations.
+	* Complex classes can be converted to / back from string and stored in attributes.
+		(By implementing `IXStringSerializable` or `IXStringSerializableSurrogate`)
+	* Dictionaries can virtually be serialized.
+		(By implementing `IXElementSerializable` or `IXElementSerializableSurrogate`)
 * [Depreciated] ~~ Multi-referenced instance serialization. ~~
 	(See <u>Multiple & Circular References</u> for more information.)
 * Serialization callbacks.
@@ -59,8 +62,6 @@ So, in current and later versions, just like `XmlSerializer`, **circular referen
 ----------
 
 Then, what else can XSerializer do? At this point, I mean, merely 2 days (2015-07-11) after I started this repos, I'm not pretty sure. But it now supports `Nullable<T>` and can handle it just like other simple types, and you can define your own rules to convert between class and string that used to store in attributes (or elements), and collections can have attributes. These features are *not* included in `System.Xml.Serialization.XmlSerializer`.
-
-In later versions, maybe it'll supports private members' serialization, just like `DataContractSeriallizer`, while giving you more control on what the output should look like.
 
 Maybe I'm reinventing the wheel? Maybe. Yet feel so good.
 

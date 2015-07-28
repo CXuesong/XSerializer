@@ -136,7 +136,7 @@ namespace Undefined.Serialization
             : this(rootType, includedTypes, null)
         { }
 
-        public XSerializer(Type rootType, IEnumerable<Type> includedTypes, XStringSerializableSurrogateCollection serializableSurrogates)
+        public XSerializer(Type rootType, IEnumerable<Type> includedTypes, XSerializableSurrogateCollection serializableSurrogates)
         {
             if (rootType == null) throw new ArgumentNullException("rootType");
             builder = new XSerializerBuilder(serializableSurrogates);

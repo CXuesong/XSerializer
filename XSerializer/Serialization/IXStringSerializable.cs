@@ -19,6 +19,11 @@ namespace Undefined.Serialization
         void Deserialize(string s);
     }
 
+    public interface IXSerializableSurrogate
+    {
+        bool IsTypeSupported(Type t);
+    }
+
     /// <summary>
     /// 用于为无法实现 <see cref="IXStringSerializable"/> 的类型指定代理实现，
     /// 以实现指定类型与字符串之间的转换。
@@ -26,9 +31,8 @@ namespace Undefined.Serialization
     /// where the type cannot implement <see cref="IXStringSerializable"/>
     /// e.g. for System.xxx types.
     /// </summary>
-    public interface IXStringSerializableSurrogate
+    public interface IXStringSerializableSurrogate : IXSerializableSurrogate
     {
-        bool IsTypeSupported(Type t);
         string Serialize(object obj);
         /// <summary>
         /// Deserialize from string used in Xml.

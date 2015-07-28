@@ -8,24 +8,25 @@ using System.Threading.Tasks;
 
 namespace Undefined.Serialization
 {
-    public class XStringSerializableSurrogateCollection : Collection<IXStringSerializableSurrogate>
+    public class XSerializableSurrogateCollection : Collection<IXSerializableSurrogate>
     {
-        protected override void InsertItem(int index, IXStringSerializableSurrogate item)
+        protected override void InsertItem(int index, IXSerializableSurrogate item)
         {
             if (item == null) throw new ArgumentNullException("item");
             base.InsertItem(index, item);
         }
 
-        protected override void SetItem(int index, IXStringSerializableSurrogate item)
+        protected override void SetItem(int index, IXSerializableSurrogate item)
         {
             if (item == null) throw new ArgumentNullException("item");
             base.SetItem(index, item);
         }
 
-        public IXStringSerializableSurrogate FindSurrogate(Type desiredType)
+        public TSurrogate FindSurrogate<TSurrogate>(Type desiredType) where TSurrogate : IXSerializableSurrogate
         {
             if (desiredType == null) throw new ArgumentNullException("desiredType");
-            return Items.FirstOrDefault(s => s.IsTypeSupported(desiredType));
+            return Items.OfType<TSurrogate>().FirstOrDefault(s => s.IsTypeSupported(desiredType));
         }
     }
+
 }

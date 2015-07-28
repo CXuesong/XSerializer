@@ -42,6 +42,7 @@
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serialization\ExpressionExtensions.cs" />
+    <Compile Include="Serialization\IXElementSerializable.cs" />
     <Compile Include="Serialization\IXStringSerializable.cs" />
     <Compile Include="Serialization\Prompts.zh.Designer.cs">
       <AutoGen>True</AutoGen>

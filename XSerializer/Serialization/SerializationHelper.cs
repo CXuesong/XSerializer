@@ -113,6 +113,11 @@ namespace Undefined.Serialization
             throw new NotSupportedException();
         }
 
+        public static bool IsCollectionType(Type t)
+        {
+            return typeof (IEnumerable).IsAssignableFrom(t);
+        }
+
         /// <summary>
         /// 获取指定集合类型在声明时所使用的元素类型。
         /// </summary>
@@ -240,15 +245,15 @@ namespace Undefined.Serialization
             return SimpleTypes.ContainsKey(t);
         }
 
-        public static TypeSerializationKind GetSerializationKind(Type t)
-        {
-            if (IsSimpleType(t))
-                return TypeSerializationKind.Simple;
-            if (typeof(IXStringSerializable).IsAssignableFrom(t))
-                return TypeSerializationKind.XStringSerializable;
-            if (typeof(IEnumerable).IsAssignableFrom(t))
-                return TypeSerializationKind.Collection;
-            return TypeSerializationKind.Complex;
-        }
+        //public static TypeSerializationKind GetSerializationKind(Type t)
+        //{
+        //    if (IsSimpleType(t))
+        //        return TypeSerializationKind.Simple;
+        //    if (typeof(IXStringSerializable).IsAssignableFrom(t))
+        //        return TypeSerializationKind.XStringSerializable;
+        //    if (typeof(IEnumerable).IsAssignableFrom(t))
+        //        return TypeSerializationKind.Collection;
+        //    return TypeSerializationKind.Complex;
+        //}
     }
 }
