@@ -4,8 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.Serialization;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 namespace Undefined.Serialization
@@ -116,9 +114,9 @@ namespace Undefined.Serialization
             return SerializeXElement(obj, nominalType, objTypeName, null);
         }
 
-        public object DeserializeRoot(XElement e, Type rootType)
+        public object DeserializeRoot(XElement e, object existingObject, Type rootType)
         {
-            var obj = DeserializeXElement(e, null, rootType, null);
+            var obj = DeserializeXElement(e, existingObject, rootType, null);
             if (!rootType.IsInstanceOfType(obj))
                 throw new InvalidOperationException("Invalid root element : " + e.Name);
             return obj;

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Undefined.Serialization;
 
@@ -20,7 +18,7 @@ namespace UnitTestProject1
         [XElement("now", MyUri2)]
         public DateTime Field2 = DateTime.Now;
 
-        [XElement()]
+        [XElement]
         public long? Field3 = null;
 
         [XElement("nullableInt")]
@@ -67,11 +65,6 @@ namespace UnitTestProject1
             get { return _MyObject; }
             set { _MyObject = value; }
         }
-
-        public MyObject1()
-        {
-            //Debug.Print("Constructed : {0}", GetHashCode());
-        }
     }
 
     [XType(null, MyObject1.MyUri1)]
@@ -92,10 +85,10 @@ namespace UnitTestProject1
             {
                 {"n1", MyObject1.MyUri1},
                 {"n2", MyObject1.MyUri2},
-                PrefixUriPair.Xsi,
+                PrefixUriPair.Xsi
             };
             var p = new XSerializerParameters(ns);
-            var obj = new MyObject1()
+            var obj = new MyObject1
             {
                 Property1 = 123e45d,
                 Array1 = new object[]
@@ -104,7 +97,7 @@ namespace UnitTestProject1
                     123.4567,
                     "def",
                     new MyObject1(),
-                    new MyObject2(),
+                    new MyObject2()
                 },
                 AnotherObject = new MyObject1(),
                 myObject = new MyObject2()
@@ -133,9 +126,9 @@ namespace UnitTestProject1
             {
                 {"n1", MyObject1.MyUri1},
                 {"n2", MyObject1.MyUri2},
-                PrefixUriPair.Xsi,
+                PrefixUriPair.Xsi
             }; var p = new XSerializerParameters(ns);
-            var obj = new MyObject1()
+            var obj = new MyObject1
             {
                 Property1 = 123e45d,
                 Array1 = new object[]
@@ -143,9 +136,9 @@ namespace UnitTestProject1
                     "abc",
                     123.4567,
                     "def",
-                    new MyObject1(),
+                    new MyObject1()
                 },
-                AnotherObject = new MyObject1(),
+                AnotherObject = new MyObject1()
             };
             //There are intentional spaces left in the strings.
             obj.List1.Add("越过长城，走向世界。    ");

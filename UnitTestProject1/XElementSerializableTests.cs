@@ -11,7 +11,7 @@ using Undefined.Serialization;
 namespace UnitTestProject1
 {
     [TestClass]
-    public class XElementSerializableTest
+    public class XElementSerializableTests
     {
         public class ClassWithDictionary
         {
@@ -101,9 +101,9 @@ namespace UnitTestProject1
         [TestMethod]
         public void DictionaryTest()
         {
-            var surrogates = new XSerializableSurrogateCollection()
+            var surrogates = new XSerializableSurrogateCollection
             {
-                new DictionaryXSerializableSurrogate<int,string>(),
+                new DictionaryXSerializableSurrogate<int,string>()
             };
             var s = new XSerializer(typeof (ClassWithDictionary), null, surrogates);
             var obj = new ClassWithDictionary();
@@ -128,7 +128,7 @@ namespace UnitTestProject1
                 {
                     {"A", "Alice"},
                     {"B", "Bob"},
-                    {"C", "Carola"},
+                    {"C", "Carola"}
                 }
             };
             var doc = s.GetSerializedDocument(obj);

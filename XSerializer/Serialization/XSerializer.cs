@@ -1,10 +1,6 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Reflection;
 using System.Xml.Linq;
 
 namespace Undefined.Serialization
@@ -15,8 +11,8 @@ namespace Undefined.Serialization
     /// </summary>
     public class XSerializer
     {
-        private static XSerializerNamespaceCollection defaultNamespaces;
-        private static XSerializerParameters defaultParameters;
+        private static readonly XSerializerNamespaceCollection defaultNamespaces;
+        private static readonly XSerializerParameters defaultParameters;
 
         private XSerializerBuilder builder;
 
@@ -82,24 +78,13 @@ namespace Undefined.Serialization
             return new XDocument(new XDeclaration("1.0", "utf-8", "yes"), root);
         }
 
-        ///// <summary>
-        ///// 为复数、枚举等类型提供辅助转换支持，将其转换为适合于 XML 值的字符串。
-        ///// </summary>
-        ///// <param name="value">要尝试进行转换的值。此值不为<c>null</c>。</param>
-        ///// <returns>一个字符串，包含了反序列化此对象所需的全部信息。
-        ///// 如果不能序列化为简单的字符串，则返回<c>null</c>。</returns>
-        //protected virtual string GetXString(object value)
-        //{
-        //    return SerializationHelper.ToXString(value);
-        //}
-
         /// <summary>
         /// 从指定的流中反序列化对象。
         /// Deserialize an object from stream.
         /// </summary>
         public object Deserialize(Stream s)
         {
-            return Deserialize(s, null);
+            return Deserialize(s, null, null);
         }
 
         /// <summary>
@@ -108,7 +93,27 @@ namespace Undefined.Serialization
         /// </summary>
         public object Deserialize(Stream s, object context)
         {
-            return Deserialize(XDocument.Load(s), context);
+            return Deserialize(s, context, null);
+        }
+
+        /// <summary>
+        /// 从指定的流中反序列化对象。
+        /// Deserialize an object from stream.
+        /// </summary>
+        /// <param name="existingObject">已存在的对象引用。如果指定，则将进行就地反序列化。</param>
+        public object Deserialize(Stream s, object context, object existingObject)
+        {
+            return Deserialize(XDocument.Load(s), context, existingObject);
+        }
+
+        /// <summary>
+        /// 从指定的 XML 文档中反序列化对象。
+        /// Deserialize an object from XDocument.
+        /// </summary>
+        /// <param name="existingObject">已存在的对象引用。如果指定，则将进行就地反序列化。</param>
+        public object Deserialize(XDocument doc)
+        {
+            return Deserialize(doc, null, null);
         }
 
         /// <summary>
@@ -117,9 +122,19 @@ namespace Undefined.Serialization
         /// </summary>
         public object Deserialize(XDocument doc, object context)
         {
+            return Deserialize(doc, context, null);
+        }
+
+        /// <summary>
+        /// 从指定的 XML 文档中反序列化对象。
+        /// Deserialize an object from XDocument.
+        /// </summary>
+        /// <param name="existingObject">已存在的对象引用。如果指定，则将进行就地反序列化。</param>
+        public object Deserialize(XDocument doc, object context, object existingObject)
+        {
             if (doc == null) throw new ArgumentNullException("doc");
             if (doc.Root == null) throw new ArgumentException(Prompts.EmptyXDocument, "doc");
-            return builder.Deserialize(doc.Root, context);
+            return builder.Deserialize(doc.Root, context, existingObject);
         }
 
         static XSerializer()
@@ -142,9 +157,9 @@ namespace Undefined.Serialization
             builder = new XSerializerBuilder(serializableSurrogates);
             builder.RegisterBuiltInTypes();
             builder.RegisterRootType(rootType);
-            if (includedTypes != null)
-                foreach (var t in includedTypes)
-                    builder.RegisterType(t);
+            if (includedTypes == null) return;
+            foreach (var t in includedTypes)
+                builder.RegisterType(t);
         }
     }
 

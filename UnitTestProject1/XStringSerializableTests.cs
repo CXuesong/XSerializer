@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Globalization;
-using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Undefined.Serialization;
-using System.Drawing.Drawing2D;
 
 namespace UnitTestProject1
 {
@@ -101,9 +100,9 @@ namespace UnitTestProject1
         [TestMethod]
         public void SerializeARectangle()
         {
-            var surrogates = new XSerializableSurrogateCollection()
+            var surrogates = new XSerializableSurrogateCollection
             {
-                new ColorXSSSurrogate(),
+                new ColorXSSSurrogate()
             };
             var s = new XSerializer(typeof(Rectangle), null, surrogates);
             var obj = new Rectangle

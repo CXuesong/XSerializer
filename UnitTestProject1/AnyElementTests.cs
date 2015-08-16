@@ -8,7 +8,7 @@ using Undefined.Serialization;
 namespace UnitTestProject1
 {
     [TestClass]
-    public class AnyElementTest
+    public class AnyElementTests
     {
 
         public class MyClass
@@ -34,7 +34,7 @@ namespace UnitTestProject1
         }
 
         [TestMethod]
-        public void TestMethod1()
+        public void AnyElementTest()
         {
             var s = new XSerializer(typeof(MyClass));
             var obj = new MyClass("AnyElement / AnyAttribute Test")

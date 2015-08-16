@@ -60,7 +60,7 @@ namespace Undefined.Serialization
     /// 当指定的类型作为XML根节点时，控制根节点的特性。
     /// Controls XML serialization of the attributed target as XML root element.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public class XRootAttribute : XNamedAttributeBase
     {
         public XRootAttribute()
@@ -79,7 +79,7 @@ namespace Undefined.Serialization
     /// 指示指定的成员应当被保存为XML元素。
     /// Specifies the member should be included in serialization as an XML element.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public class XElementAttribute : XNamedAttributeBase
     {
         public XElementAttribute()
@@ -98,7 +98,7 @@ namespace Undefined.Serialization
     /// 指示指定的成员应当被保存为XML属性。
     /// Specifies the member should be included in serialization as an XML attribute.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public class XAttributeAttribute : XNamedAttributeBase
     {
         public XAttributeAttribute(string localName)
@@ -118,7 +118,7 @@ namespace Undefined.Serialization
     /// Specifies the derived type and/or XML element name of child items (of the collection field/property).
     /// This attribute may be used multiple times.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, Inherited = false, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = true)]
     public class XCollectionItemAttribute : XNamedAttributeBase
     {
         /// <summary>
@@ -158,7 +158,7 @@ namespace Undefined.Serialization
     /// 控制指定的类型在序列化时的 XML 名称和行为。
     /// Specifies the XML qualified name & behavior for the class or structure.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
     public class XTypeAttribute : XNamedAttributeBase
     {
 
@@ -205,24 +205,18 @@ namespace Undefined.Serialization
     /// 指示应当将所有未识别的XML属性保存至此。
     /// Specifies all the unrecognized XML attributes should be contained in the field or property.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class XAnyAttributeAttribute : Attribute
     {
-        public XAnyAttributeAttribute()
-        {
-        }
     }
 
     /// <summary>
     /// 指示应当将所有未识别的XML元素保存至此。
     /// Specifies all the unrecognized XML elements should be contained in the field or property.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false)]
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
     public sealed class XAnyElementAttribute : Attribute
     {
-        public XAnyElementAttribute()
-        {
-        }
     }
 
     /// <summary>
@@ -253,11 +247,8 @@ namespace Undefined.Serialization
             {
                 throw new ArgumentNullException("info");
             }
-            else
-            {
-                var attr = info.GetCustomAttribute<XEnumAttribute>();
-                return attr == null ? info.Name : attr._Name;
-            }
+            var attr = info.GetCustomAttribute<XEnumAttribute>();
+            return attr == null ? info.Name : attr._Name;
         }
     }
 
