@@ -21,12 +21,12 @@ namespace Undefined.Serialization
             return Expression.NotEqual(lhs, rhs);
         }
 
-        public static Expression IfTrue(this Expression condition, Expression ifTrue)
+        public static Expression Then(this Expression condition, Expression ifTrue)
         {
             return Expression.IfThen(condition, ifTrue);
         }
 
-        public static Expression If(this Expression condition, Expression ifTrue, Expression ifFalse)
+        public static Expression ThenElse(this Expression condition, Expression ifTrue, Expression ifFalse)
         {
             return Expression.IfThenElse(condition, ifTrue, ifFalse);
         }

@@ -205,9 +205,10 @@ namespace Undefined.Serialization
             return E.Block(memberType, new[] { localCurrentValue, localNewValue },
                 localCurrentValue.AssignFrom(obj.Member(member)),
                 localNewValue.AssignFrom(newValueGenerator(localCurrentValue)),
-                (SerializationHelper.IsNullableType(memberType)
-                    ? localCurrentValue.NotEqualsTo(localNewValue).IfTrue(assignMemberExpr)
-                    : assignMemberExpr),
+                (memberType.IsValueType
+                    ? assignMemberExpr
+                    : E.Call(typeof(object), "ReferenceEquals", null,
+                    localCurrentValue, localNewValue).Invert().Then(assignMemberExpr)),
                 localNewValue);
         }
 
@@ -337,7 +338,7 @@ namespace Undefined.Serialization
                         localEachItem.Cast<object>(), E.Constant(viType), argTypeScope));
                 exprs.Add(ForEach(localEachItem, localObj,
                     SerializationHelper.IsNullableType(viType)
-                        ? localEachItem.NotEqualsTo(E.Constant(null)).IfTrue(tempExpr)
+                        ? localEachItem.NotEqualsTo(E.Constant(null)).Then(tempExpr)
                         : tempExpr
                     ));
                 // Deserialize
@@ -531,11 +532,14 @@ namespace Undefined.Serialization
                 throw new InvalidOperationException(string.Format(Prompts.InvalidAttributesCombination, member));
             var isAttribute = aattr != null;
             var memberType = SerializationHelper.GetMemberValueType(member);
+            var memberProtoType = Nullable.GetUnderlyingType(memberType) ?? memberType;
             var localNewValueStr = E.Parameter(typeof (string), "newValueStr");
             var localNewValueXObj = E.Parameter(isAttribute ? typeof (XAttribute) : typeof (XElement), "newValueXObject");
             var memberNameExpr = E.Constant(SerializationHelper.GetName(member, (XNamedAttributeBase) eattr ?? aattr));
             var exprs = new List<Expression>();
             var exprd = new List<Expression>();
+            //var BuildWhenMemberNotNull = SerializationHelper.IsNullableType(memberType) ?
+            //    e => localObj.Member(member).NotEqualsTo(E.Constant(null)).Then(e) : (Func<E, E>)(e => e);
             exprd.Add(localNewValueXObj.AssignFrom(
                 argElement.CallMember(isAttribute ? "Attribute" : "Element", memberNameExpr)));
             var surrogate = GetXStringSerializableSurrogate(memberType);
@@ -546,7 +550,7 @@ namespace Undefined.Serialization
                     E.Constant(surrogate, typeof (IXStringSerializableSurrogate))
                         .CallMember("Serialize", localObj.Member(member).Cast<object>())));
                 exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
-                exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(
+                exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).Then(
                     BuildMemberAssigner(localObj, member, current =>
                         E.Constant(surrogate, typeof (IXStringSerializableSurrogate))
                             .CallMember("Deserialize", localNewValueStr, E.Constant(memberType)).Cast(memberType))));
@@ -556,29 +560,39 @@ namespace Undefined.Serialization
             {
                 exprs.Add(argElement.CallMember(isAttribute ? "SetAttributeValue" : "SetElementValue", memberNameExpr,
                     localObj.Member(member).Cast<object>()));
-                exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).IfTrue(
+                exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).Then(
                     localObj.Member(member).AssignFrom(BuildXSimpleTypeConversion(localNewValueXObj, memberType))));
                 goto BUILD_BLOCK;
             }
-            if (typeof (IXStringSerializable).IsAssignableFrom(memberType))
+            if (typeof(IXStringSerializable).IsAssignableFrom(memberProtoType))
             {
+                var NT = Nullable.GetUnderlyingType(memberType) == null
+                    ? e => e : (Func<E, E>)(e => e.Member("Value"));
                 if (isAttribute)
                 {
-                    exprs.Add(argElement.CallMember("SetAttributeValue", memberNameExpr,
+                    exprs.Add(SerializationHelper.IsNullableType(memberType)
+                        ? localObj.Member(member).NotEqualsTo(E.Constant(null)).Then(
+                            argElement.CallMember("SetAttributeValue", memberNameExpr,
+                            NT(localObj.Member(member)).CallMember(IXStringSerializable_Serialize)))
+                        : argElement.CallMember("SetAttributeValue", memberNameExpr,
                         localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
                     //Deserialize
                     exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
                 }
                 else
                 {
-                    exprs.Add(argElement.CallMember("SetElementValue", memberNameExpr,
+                    exprs.Add(SerializationHelper.IsNullableType(memberType)
+                        ? localObj.Member(member).NotEqualsTo(E.Constant(null)).Then(
+                            argElement.CallMember("SetElementValue", memberNameExpr,
+                            NT(localObj.Member(member)).CallMember(IXStringSerializable_Serialize)))
+                        : argElement.CallMember("SetElementValue", memberNameExpr,
                         localObj.Member(member).CallMember(IXStringSerializable_Serialize)));
                     //Deserialize
                     exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
                 }
                 //在反序列化时需要显式将 ValueType 装箱。
                 var localBoxedValue = E.Parameter(typeof(object), "boxedValue");
-                exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).IfTrue(
+                exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).Then(
                     BuildMemberAssigner(localObj, member, current =>
                         E.Block(new[] { localBoxedValue },
                             localBoxedValue.AssignFrom(BuildObjectConstructor(memberType, current).Cast<object>()),
@@ -620,7 +634,7 @@ namespace Undefined.Serialization
                     E.Constant(SerializationHelper.GetName(member, eattr)),
                     E.Constant(scope, typeof (SerializationScope)))));
             //Deserialize
-            exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).IfTrue(
+            exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).Then(
                 BuildMemberAssigner(localObj, member, current =>
                     argState.CallMember("DeserializeXProperty",
                         localNewValueXObj,
