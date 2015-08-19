@@ -9,33 +9,23 @@ namespace Undefined.Serialization
     /// </summary>
     public abstract class XNamedAttributeBase : Attribute
     {
-        private readonly string _LocalName;
+        public string LocalName { get; }
 
-        private readonly string _Namespace;
-
-        public string LocalName
-        {
-            get { return _LocalName; }
-        }
-
-        public string Namespace
-        {
-            get { return _Namespace; }
-        }
+        public string Namespace { get; }
 
         internal XName GetName()
         {
-            return XName.Get(_LocalName, _Namespace);
+            return XName.Get(LocalName, Namespace);
         }
 
         internal XName GetName(string defaultLocalName)
         {
-            return XName.Get(_LocalName ?? defaultLocalName, _Namespace);
+            return XName.Get(LocalName ?? defaultLocalName, Namespace);
         }
 
         internal XName GetName(XName defaultName)
         {
-            return XName.Get(_LocalName ?? defaultName.LocalName, _Namespace ?? defaultName.NamespaceName);
+            return XName.Get(LocalName ?? defaultName.LocalName, Namespace ?? defaultName.NamespaceName);
         }
 
         /// <param name="localName">
@@ -48,8 +38,8 @@ namespace Undefined.Serialization
         /// </param>
         protected XNamedAttributeBase(string localName, string namespaceUri)
         {
-            _LocalName = localName;
-            _Namespace = namespaceUri ?? string.Empty;
+            LocalName = localName;
+            Namespace = namespaceUri ?? string.Empty;
         }
 
         protected XNamedAttributeBase() : this(null, null)
@@ -163,10 +153,10 @@ namespace Undefined.Serialization
     {
 
         /// <summary>
-        /// 指示序列化时是否应当检查此类型的私有成员。
-        /// Specifies whether to check private members in the attributed type while serializing.
+        /// 指示序列化时是否应当检查此类型的非共有成员。
+        /// Specifies whether to check non-public members in the attributed type while serializing.
         /// </summary>
-        public bool IncludePrivateMembers { get; set; }
+        public bool IncludeNonPublicMembers { get; set; }
 
         public XTypeAttribute()
         { }
@@ -187,18 +177,13 @@ namespace Undefined.Serialization
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true)]
     public class XIncludeAttribute : Attribute
     {
-        private Type _Type;
-
         public XIncludeAttribute(Type type)
         {
             if (type == null) throw new ArgumentNullException("type");
-            _Type = type;
+            Type = type;
         }
 
-        public Type Type
-        {
-            get { return _Type; }
-        }
+        public Type Type { get; }
     }
 
     /// <summary>
@@ -225,16 +210,11 @@ namespace Undefined.Serialization
     [AttributeUsage(AttributeTargets.Field)]
     internal class XEnumAttribute : Attribute
     {
-        private readonly string _Name;
-
-        public string Name
-        {
-            get { return _Name; }
-        }
+        public string Name { get; }
 
         public XEnumAttribute(string name)
         {
-            _Name = name;
+            Name = name;
         }
 
         /// <summary>
@@ -248,7 +228,7 @@ namespace Undefined.Serialization
                 throw new ArgumentNullException("info");
             }
             var attr = info.GetCustomAttribute<XEnumAttribute>();
-            return attr == null ? info.Name : attr._Name;
+            return attr == null ? info.Name : attr.Name;
         }
     }
 

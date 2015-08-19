@@ -6,7 +6,7 @@ using Undefined.Serialization;
 
 namespace UnitTestProject1
 {
-    [XType(null, MyUri, IncludePrivateMembers = true)]
+    [XType(null, MyUri, IncludeNonPublicMembers = true)]
     public class SimpleObject1
     {
         public const string MyUri = "http://www.yourcompany.org/schemas/undefined/simple";

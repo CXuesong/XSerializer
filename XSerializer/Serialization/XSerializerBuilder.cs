@@ -2,9 +2,12 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.SymbolStore;
+using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Xml.Linq;
 using E = System.Linq.Expressions.Expression;
@@ -141,7 +144,7 @@ namespace Undefined.Serialization
 
         private static Expression BuildThrowException(Type exceptionType, string arg1)
         {
-            var constructor = exceptionType.GetConstructor(new[] {typeof (string)});
+            var constructor = exceptionType.GetConstructor(new[] { typeof(string) });
             Debug.Assert(constructor != null);
             return E.Throw(E.New(constructor, E.Constant(arg1)));
         }
@@ -153,7 +156,7 @@ namespace Undefined.Serialization
             if (t.IsValueType) return E.Default(t);
             var tConstructor = GetTypeConstructor(t);
             var constructionExpr = tConstructor == null
-                ? E.Block(t, BuildThrowException(typeof (NotSupportedException),
+                ? E.Block(t, BuildThrowException(typeof(NotSupportedException),
                     string.Format(Prompts.UnableToDeserialize, t)), E.Constant(null, t))
                 : E.New(tConstructor).Cast(t);
             //使用默认的构造函数。
@@ -199,7 +202,7 @@ namespace Undefined.Serialization
             var localCurrentValue = E.Parameter(memberType, "current" + member.Name);
             var localNewValue = E.Parameter(memberType, "new" + member.Name);
             var assignMemberExpr = SerializationHelper.IsMemberReadOnly(member)
-                ? BuildThrowException(typeof (NotSupportedException),
+                ? BuildThrowException(typeof(NotSupportedException),
                     string.Format(Prompts.UnableToDeserialize, member))
                 : obj.Member(member).AssignFrom(localNewValue);
             return E.Block(memberType, new[] { localCurrentValue, localNewValue },
@@ -223,6 +226,11 @@ namespace Undefined.Serialization
             if (baseType == typeof(IntPtr)) return source.Cast<long?>().Cast(destType);
             if (baseType == typeof(UIntPtr)) return source.Cast<ulong?>().Cast(destType);
             return source.Cast(destType);
+        }
+
+        private DebugInfoExpression BuildDebugInfo(SymbolDocumentInfo symbolDoc, int lineNumber)
+        {
+            return E.DebugInfo(symbolDoc, lineNumber, 1, lineNumber, 1);
         }
 
         /// <summary>
@@ -250,6 +258,19 @@ namespace Undefined.Serialization
             var localNewValueElem = E.Parameter(typeof(XElement), "newValueElement");
             var localNewValueAttr = E.Parameter(typeof(XElement), "newValueAttribute");
             var locald = new[] { localObj, localNewValueElem, localNewValueAttr };
+            // Symbols
+#if DEBUG
+            var typeSymbolName = t.ToString();
+            typeSymbolName = Path.GetInvalidFileNameChars().Aggregate(typeSymbolName,
+                (current, c) => current.Replace(c, '_'));
+            var symbols = E.SymbolDocument("[XSerializer.S]" + typeSymbolName + ".txt");
+            var symbold = E.SymbolDocument("[XSerializer.D]" + typeSymbolName + ".txt");
+#else
+            var symbols = E.SymbolDocument("-");
+            var symbold = E.SymbolDocument("-");
+#endif
+            exprs.Add(BuildDebugInfo(symbols, 1));
+            exprd.Add(BuildDebugInfo(symbold, 1));
 #if DEBUG
             // Assert obj is instance of t, hence not null.
             exprs.Add(E.Invoke((Expression<Action<object>>)(obj => Debug.Assert(t.IsInstanceOfType(obj))), argObj));
@@ -267,10 +288,10 @@ namespace Undefined.Serialization
             if (xeSurrogate != null)
             {
                 //存在代理 XElement 序列化生成器。
-                exprs.Add(E.Constant(xeSurrogate, typeof (IXElementSerializableSurrogate))
+                exprs.Add(E.Constant(xeSurrogate, typeof(IXElementSerializableSurrogate))
                     .CallMember("Serialize", argObj, argElement));
                 exprd.Add(argObj.AssignFrom(BuildObjectConstructor(t, argObj).Cast<object>()));
-                exprd.Add(E.Constant(xeSurrogate, typeof (IXElementSerializableSurrogate))
+                exprd.Add(E.Constant(xeSurrogate, typeof(IXElementSerializableSurrogate))
                     .CallMember("Deserialize", argElement, E.Constant(t, typeof(Type)), argObj));
                 exprd.Add(argObj);
                 goto BUILD_LAMBDA;
@@ -291,7 +312,7 @@ namespace Undefined.Serialization
                 exprd.Add(argObj);
                 goto BUILD_LAMBDA;
             }
-            if (typeof (IXElementSerializable).IsAssignableFrom(t))
+            if (typeof(IXElementSerializable).IsAssignableFrom(t))
             {
                 exprs.Add(argObj.Cast<IXElementSerializable>().CallMember("Serialize", argElement));
                 exprd.Add(argObj.AssignFrom(BuildObjectConstructor(t, argObj).Cast<object>()));
@@ -301,6 +322,7 @@ namespace Undefined.Serialization
             }
             // 处理回调函数。 Invoke callbacks.
             var onDeserializingCallbacks = new List<MethodInfo>();
+            exprs.Add(BuildDebugInfo(symbols, 10));
             foreach (var method in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
                                                 | BindingFlags.Static | BindingFlags.Instance))
             {
@@ -336,6 +358,7 @@ namespace Undefined.Serialization
                 var tempExpr = argElement.CallMember("Add",
                     argState.CallMember("SerializeXCollectionItem",
                         localEachItem.Cast<object>(), E.Constant(viType), argTypeScope));
+                exprs.Add(BuildDebugInfo(symbols, 11));
                 exprs.Add(ForEach(localEachItem, localObj,
                     SerializationHelper.IsNullableType(viType)
                         ? localEachItem.NotEqualsTo(E.Constant(null)).Then(tempExpr)
@@ -352,17 +375,22 @@ namespace Undefined.Serialization
                     if (onDeserializingCallbacks.Count > 0 && t.IsAssignableFrom(destList.Type))
                     {
                         //集合刚刚初始化完毕后，调用回调函数，然后再添加项目。
-                        return E.Block(E.Block(onDeserializingCallbacks.Select(
-                            m => localObj.CallMember(m, argState.Member("Context")))), coreExpr);
+                        return E.Block(BuildDebugInfo(symbold, 10),
+                            E.Block(onDeserializingCallbacks.Select(
+                            m => localObj.CallMember(m, argState.Member("Context")))),
+                            BuildDebugInfo(symbold, 11),
+                            coreExpr);
                     }
                     return coreExpr;
                 })));
             }
             else
             {
-                // Not a collection. Build object directly and invoke serializing callbacks.
+                // Not a collection. Build object directly and invoke serialization callbacks.
+                exprd.Add(BuildDebugInfo(symbold, 10));
                 exprd.Add(localObj.AssignFrom(BuildObjectConstructor(t, argObj)));
-                exprd.AddRange(onDeserializingCallbacks.Select(m => 
+                exprd.Add(BuildDebugInfo(symbold, 11));
+                exprd.AddRange(onDeserializingCallbacks.Select(m =>
                     localObj.CallMember(m, argState.Member("Context"))));
             }
             //序列化属性/字段。 Serialize property / field.
@@ -370,14 +398,18 @@ namespace Undefined.Serialization
                                | BindingFlags.Public | BindingFlags.Instance;
             {
                 var typeAttr = t.GetCustomAttribute<XTypeAttribute>();
-                if (typeAttr != null)
+                if (typeAttr != null && typeAttr.IncludeNonPublicMembers)
                     bindingFlags |= BindingFlags.NonPublic;
             }
             //用于保存可被识别的属性和元素列表，以便于生成未识别的元素列表。
+            var memberCounter = 0;
             var knownAttributes = new HashSet<XName>();
             var knownElements = new HashSet<XName>();
             foreach (var member in t.GetMembers(bindingFlags))
             {
+                memberCounter++;
+                exprs.Add(BuildDebugInfo(symbols, 100 + memberCounter));
+                exprd.Add(BuildDebugInfo(symbold, 100 + memberCounter));
                 //exprd.Add(argState.CallMember("TestPoint", E.Constant(member.Name).Cast<object>()));
                 if (member.MemberType != MemberTypes.Field && member.MemberType != MemberTypes.Property)
                     continue;
@@ -463,6 +495,8 @@ namespace Undefined.Serialization
                     exprd.Add(ms.Item3);
                 }
             }
+            exprs.Add(BuildDebugInfo(symbols, 2000));
+            exprd.Add(BuildDebugInfo(symbold, 2000));
             // 处理回调函数。 Invoke callbacks.
             foreach (var method in t.GetMethods(BindingFlags.Public | BindingFlags.NonPublic
                 | BindingFlags.Static | BindingFlags.Instance))
@@ -473,13 +507,21 @@ namespace Undefined.Serialization
                     exprd.Add(localObj.CallMember(method, argState.Member("Context")));
             }
             // 别忘了反序列化的返回值（装箱）。
+            exprd.Add(BuildDebugInfo(symbold, 2001));
             exprd.Add(localObj.Cast<object>());
-        BUILD_LAMBDA:
+            BUILD_LAMBDA:
             // 编译。
             var serializerLambda = E.Lambda(E.Block(typeof(void), locals, exprs), argElement, argObj, argState, argTypeScope);
-            serializer.RegisterSerializeXElementAction(serializerLambda.Compile());
             var deserializerLambda = E.Lambda(E.Block(typeof(object), locald, exprd), argElement, argObj, argState, argTypeScope);
+#if DEBUG
+            var pdbGenerator = DebugInfoGenerator.CreatePdbGenerator();
+            serializer.RegisterSerializeXElementAction(serializerLambda.Compile(pdbGenerator));
+            serializer.RegisterDeserializeXElementAction(deserializerLambda.Compile(pdbGenerator));
+#else
+            serializer.RegisterSerializeXElementAction(serializerLambda.Compile());
             serializer.RegisterDeserializeXElementAction(deserializerLambda.Compile());
+#endif
+
         }
 
         #endregion
@@ -533,9 +575,9 @@ namespace Undefined.Serialization
             var isAttribute = aattr != null;
             var memberType = SerializationHelper.GetMemberValueType(member);
             var memberProtoType = Nullable.GetUnderlyingType(memberType) ?? memberType;
-            var localNewValueStr = E.Parameter(typeof (string), "newValueStr");
-            var localNewValueXObj = E.Parameter(isAttribute ? typeof (XAttribute) : typeof (XElement), "newValueXObject");
-            var memberNameExpr = E.Constant(SerializationHelper.GetName(member, (XNamedAttributeBase) eattr ?? aattr));
+            var localNewValueStr = E.Parameter(typeof(string), "newValueStr");
+            var localNewValueXObj = E.Parameter(isAttribute ? typeof(XAttribute) : typeof(XElement), "newValueXObject");
+            var memberNameExpr = E.Constant(SerializationHelper.GetName(member, (XNamedAttributeBase)eattr ?? aattr));
             var exprs = new List<Expression>();
             var exprd = new List<Expression>();
             //var BuildWhenMemberNotNull = SerializationHelper.IsNullableType(memberType) ?
@@ -547,12 +589,12 @@ namespace Undefined.Serialization
             {
                 //存在代理 XString 序列化生成器。
                 exprs.Add(argElement.CallMember(isAttribute ? "SetAttributeValue" : "SetElementValue", memberNameExpr,
-                    E.Constant(surrogate, typeof (IXStringSerializableSurrogate))
+                    E.Constant(surrogate, typeof(IXStringSerializableSurrogate))
                         .CallMember("Serialize", localObj.Member(member).Cast<object>())));
                 exprd.Add(localNewValueStr.AssignFrom(localNewValueXObj.Cast<string>()));
                 exprd.Add(localNewValueStr.NotEqualsTo(E.Constant(null)).Then(
                     BuildMemberAssigner(localObj, member, current =>
-                        E.Constant(surrogate, typeof (IXStringSerializableSurrogate))
+                        E.Constant(surrogate, typeof(IXStringSerializableSurrogate))
                             .CallMember("Deserialize", localNewValueStr, E.Constant(memberType)).Cast(memberType))));
                 goto BUILD_BLOCK;
             }
@@ -632,22 +674,22 @@ namespace Undefined.Serialization
             exprs.Add(argElement.CallMember("Add",
                 argState.CallMember("SerializeXProperty", localObj.Member(member).Cast<object>(), E.Constant(memberType),
                     E.Constant(SerializationHelper.GetName(member, eattr)),
-                    E.Constant(scope, typeof (SerializationScope)))));
+                    E.Constant(scope, typeof(SerializationScope)))));
             //Deserialize
             exprd.Add(localNewValueXObj.NotEqualsTo(E.Constant(null)).Then(
                 BuildMemberAssigner(localObj, member, current =>
                     argState.CallMember("DeserializeXProperty",
                         localNewValueXObj,
                         current.Cast<object>(), E.Constant(memberType),
-                        E.Constant(scope, typeof (SerializationScope))).Cast(memberType)
+                        E.Constant(scope, typeof(SerializationScope))).Cast(memberType)
                     )));
             BUILD_BLOCK:
             // 编译。
             var serializerBlock =
-                E.Block(new[] {localNewValueStr, localNewValueXObj}, exprs);
+                E.Block(new[] { localNewValueStr, localNewValueXObj }, exprs);
             var deserializerBlock =
-                E.Block(new[] {localNewValueStr, localNewValueXObj}, exprd);
-            return Tuple.Create<XName, Expression, Expression>((XName) memberNameExpr.Value,
+                E.Block(new[] { localNewValueStr, localNewValueXObj }, exprd);
+            return Tuple.Create<XName, Expression, Expression>((XName)memberNameExpr.Value,
                 serializerBlock, deserializerBlock);
         }
 
