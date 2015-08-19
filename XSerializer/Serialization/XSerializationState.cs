@@ -53,7 +53,7 @@ namespace Undefined.Serialization
 
         public void TestPoint(object a)
         {
-            Debug.Print("{0}", a);
+            Trace.WriteLine("" + a);
         }
 
         public XElement SerializeRoot(object obj, Type rootType, XName name, XSerializerNamespaceCollection namespaces)

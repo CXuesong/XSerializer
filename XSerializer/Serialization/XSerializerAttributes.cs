@@ -208,7 +208,7 @@ namespace Undefined.Serialization
     /// 控制枚举值在 XML 输出时的文本表示。
     /// </summary>
     [AttributeUsage(AttributeTargets.Field)]
-    internal class XEnumAttribute : Attribute
+    public class XEnumAttribute : Attribute
     {
         public string Name { get; }
 

@@ -51,10 +51,7 @@ namespace UnitTestProject1
             public Point Point1 { get; set; }
 
             [XAttribute("point2")]
-            public Point Point2 { get; set; }
-
-            [XAttribute("point3")]
-            public Point? Point3 { get; set; }
+            public Point? Point2 { get; set; }
 
             [XAttribute("border")]
             public Color BorderColor { get; set; }
