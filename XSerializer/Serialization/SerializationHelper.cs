@@ -205,6 +205,7 @@ namespace Undefined.Serialization
                         //Object can be inherited.
                         //{typeof (Object), Xsi + "Object"},
                         {typeof (String), Xsi + "string"},
+                        {typeof (Boolean), Xsi + "boolean"},
                         {typeof (Byte), Xsi + "unsignedByte"},
                         {typeof (SByte), Xsi + "byte"},
                         {typeof (Int16), Xsi + "short"},
