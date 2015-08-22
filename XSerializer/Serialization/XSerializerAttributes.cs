@@ -205,6 +205,15 @@ namespace Undefined.Serialization
     }
 
     /// <summary>
+    /// 指示应当将此成员序列化为父级元素中包含的文本。
+    /// Specifies the attributed field or property should be serialized as xml text contained in the parent element.
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+    public sealed class XTextAttribute : Attribute
+    {
+    }
+
+    /// <summary>
     /// 控制枚举值在 XML 输出时的文本表示。
     /// </summary>
     [AttributeUsage(AttributeTargets.Field)]

@@ -11,6 +11,11 @@ namespace Undefined.Serialization
             return Expression.Assign(lhs, rhs);
         }
 
+        public static Expression AssignFromCasted(this Expression lhs, Expression rhs)
+        {
+            return Expression.Assign(lhs, rhs.Cast(lhs.Type));
+        }
+
         public static Expression EqualsTo(this Expression lhs, Expression rhs)
         {
             return Expression.Equal(lhs, rhs);

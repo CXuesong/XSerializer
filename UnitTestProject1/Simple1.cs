@@ -34,6 +34,9 @@ namespace UnitTestProject1
         {
             get { return _CompositeArray; }
         }
+
+        [XText]
+        public string ExtraContent { get; set; }
     }
 
     [TestClass]
@@ -43,7 +46,7 @@ namespace UnitTestProject1
         public void SerializationTest()
         {
             var s = new XSerializer(typeof(SimpleObject1));
-            var obj = new SimpleObject1 { Title = "Simple Object Test" };
+            var obj = new SimpleObject1 {Title = "Simple Object Test", ExtraContent = "Extra content here."};
             obj.CompositeArray.Add("Hello, world!");
             obj.CompositeArray.Add(12345.67e89);
             obj.CompositeArray.Add(new SimpleObject1 { Title = "Child Object" });
@@ -51,6 +54,7 @@ namespace UnitTestProject1
             Trace.WriteLine(doc);
             var obj1 = (SimpleObject1)s.Deserialize(doc, null);
             Assert.AreEqual(obj.Title, obj1.Title);
+            Assert.AreEqual(obj.ExtraContent, obj1.ExtraContent);
             Assert.AreEqual(obj.Time, obj1.Time);
             Assert.AreEqual(obj.CompositeArray.Count, obj1.CompositeArray.Count);
             for (var i = 0; i < obj.CompositeArray.Count; i++)
