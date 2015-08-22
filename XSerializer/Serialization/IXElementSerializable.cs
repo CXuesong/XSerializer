@@ -42,4 +42,40 @@ namespace Undefined.Serialization
         /// containing deserialized content.</returns>
         object Deserialize(XElement element, Type desiredType, object existingObj);
     }
+
+    /// <summary>
+    /// 可以使用两个委托来分别表示代理序列化/反序列化过程。
+    /// Enables serialization for specified type with two delegates.
+    /// </summary>
+    /// <typeparam name="T">要支持序列化的对象类型。</typeparam>
+    public sealed class DelegateXElementSerializableSurrogate<T> : IXElementSerializableSurrogate
+    {
+        private readonly Action<T, XElement> serializer;
+        private readonly Func<XElement, T, T> deserializer;
+
+        public DelegateXElementSerializableSurrogate(Action<T, XElement> serializer, Func<XElement, T, T> deserializer)
+        {
+            if (serializer == null) throw new ArgumentNullException("serializer");
+            if (deserializer == null) throw new ArgumentNullException("deserializer");
+            this.serializer = serializer;
+            this.deserializer = deserializer;
+        }
+
+        public bool IsTypeSupported(Type t)
+        {
+            return t == typeof (T);
+        }
+
+        public void Serialize(object obj, XElement element)
+        {
+            serializer((T) obj, element);
+        }
+
+        public object Deserialize(XElement element, Type desiredType, object existingObj)
+        {
+            if (desiredType != typeof (T)) throw new NotSupportedException();
+            return deserializer(element, (T) existingObj);
+        }
+       
+    }
 }

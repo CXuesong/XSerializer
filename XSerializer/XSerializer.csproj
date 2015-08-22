@@ -57,11 +57,11 @@
       <DependentUpon>Prompts.resx</DependentUpon>
     </Compile>
     <Compile Include="Serialization\SerializationHelper.cs" />
-    <Compile Include="Serialization\XStringSerializableSurrogateCollection.cs" />
+    <Compile Include="Serialization\XSerializableSurrogateCollection.cs" />
     <Compile Include="Serialization\XSerializerBuilder.cs" />
     <Compile Include="Serialization\XSerializationState.cs" />
     <Compile Include="Serialization\XSerializer.cs" />
-    <Compile Include="Serialization\XSserializerNamespaceCollection.cs" />
+    <Compile Include="Serialization\XSerializerNamespaceCollection.cs" />
     <Compile Include="Serialization\XSerializerAttributes.cs" />
   </ItemGroup>
   <ItemGroup>
