@@ -117,6 +117,15 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="CannotAssignReadonlyMember" xml:space="preserve">
+    <value>无法在反序列化后向只读成员 {0} 赋值。</value>
+  </data>
+  <data name="CannotConstructObject" xml:space="preserve">
+    <value>无法构造对象 {0} 。</value>
+  </data>
+  <data name="CannotDeserialize" xml:space="preserve">
+    <value>无法反序列化 {0}。</value>
+  </data>
   <data name="CannotSerializeAsAttribute" xml:space="preserve">
     <value>无法将 {0} 作为属性值进行序列化。</value>
   </data>
@@ -143,9 +152,6 @@
   </data>
   <data name="StrcutureReadonly" xml:space="preserve">
     <value>无法反序列化只读结构体。</value>
-  </data>
-  <data name="UnableToDeserialize" xml:space="preserve">
-    <value>无法反序列化 {0}。</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
     <value>在作用域“{1}”内未注册类型：{0}。</value>

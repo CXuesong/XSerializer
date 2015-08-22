@@ -123,14 +123,15 @@ namespace Undefined.Serialization
             return E.Block(new[] { localEnum, i },
                 localEnum.AssignFrom(enumerator),
                 E.Loop(E.IfThenElse(localEnum.CallMember(IEnumerator_MoveNext),
-                    E.Block(i.AssignFrom(localEnum.Member("Current")), body),
+                    E.Block(i.AssignFromCasted(localEnum.Member("Current")), body),
                     E.Break(labelExitFor)), labelExitFor));
         }
 
         private static ConstructorInfo GetTypeConstructor(Type t)
         {
             if (t.IsArray) return null;
-            var constr = t.GetConstructor(Type.EmptyTypes);
+            var constr = t.GetConstructor(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                null, Type.EmptyTypes, null);
             if (constr != null) return constr;
             //为接口寻找合适的实现类型。
             if (typeof(IEnumerable).IsAssignableFrom(t))
@@ -159,7 +160,7 @@ namespace Undefined.Serialization
             var tConstructor = GetTypeConstructor(t);
             var constructionExpr = tConstructor == null
                 ? E.Block(t, BuildThrowException(typeof(NotSupportedException),
-                    string.Format(Prompts.UnableToDeserialize, t)), E.Constant(null, t))
+                    string.Format(Prompts.CannotConstructObject, t)), E.Constant(null, t))
                 : E.New(tConstructor).Cast(t);
             //使用默认的构造函数。
             //对于可为 null 的类型，尝试重用 existingObject
@@ -179,7 +180,7 @@ namespace Undefined.Serialization
             if (t.IsArray)
             {
                 if (t.GetArrayRank() > 1)
-                    throw new NotSupportedException(string.Format(Prompts.UnableToDeserialize, t));
+                    throw new NotSupportedException(string.Format(Prompts.CannotDeserialize, t));
                 var localSurrogate = E.Parameter(typeof(List<>).MakeGenericType(viType), "surrogate");
                 //对数组使用代理集合（List<T>）。
                 return E.Block(t, new[] { localCollection, localSurrogate },
@@ -205,7 +206,7 @@ namespace Undefined.Serialization
             var localNewValue = E.Parameter(memberType, "new" + member.Name);
             var assignMemberExpr = SerializationHelper.IsMemberReadOnly(member)
                 ? BuildThrowException(typeof(NotSupportedException),
-                    string.Format(Prompts.UnableToDeserialize, member))
+                    string.Format(Prompts.CannotAssignReadonlyMember, member))
                 : obj.Member(member).AssignFrom(localNewValue);
             return E.Block(memberType, new[] { localCurrentValue, localNewValue },
                 localCurrentValue.AssignFrom(obj.Member(member)),
