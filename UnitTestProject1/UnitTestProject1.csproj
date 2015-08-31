@@ -59,6 +59,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Simple1.cs" />
     <Compile Include="InPlaceDeserializationTests.cs" />
+    <Compile Include="AbstractTypeTests.cs" />
     <Compile Include="XElementSerializableTests.cs" />
     <Compile Include="AnyElementTests.cs" />
     <Compile Include="CallbackTests.cs" />

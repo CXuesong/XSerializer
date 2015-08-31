@@ -158,6 +158,8 @@ namespace Undefined.Serialization
             //注意 Nullable 也是 ValueType。
             if (t.IsValueType) return E.Default(Nullable.GetUnderlyingType(t) ?? t);
             var tConstructor = GetTypeConstructor(t);
+            //无法使用抽象类的构造函数。
+            if (t.IsAbstract) tConstructor = null;
             var constructionExpr = tConstructor == null
                 ? E.Block(t, BuildThrowException(typeof(NotSupportedException),
                     string.Format(Prompts.CannotConstructObject, t)), E.Constant(null, t))
@@ -793,6 +795,9 @@ namespace Undefined.Serialization
         public void AddType(XName name, Type type)
         {
             Debug.Assert(type != null && name != null);
+            var existing = GetType(name);
+            if (existing != null && existing != type)
+                throw new ArgumentException(string.Format(Prompts.TypeNameRegistered, name, existing));
             nameTypeDict.Add(name, type);
             typeNameDict.Add(type, name);
         }

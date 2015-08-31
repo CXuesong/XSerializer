@@ -146,7 +146,7 @@ namespace Undefined.Serialization
 
     /// <summary>
     /// 控制指定的类型在序列化时的 XML 名称和行为。
-    /// Specifies the XML qualified name & behavior for the class or structure.
+    /// Specifies the XML qualified name &amp; behavior for the class or structure.
     /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
     public class XTypeAttribute : XNamedAttributeBase

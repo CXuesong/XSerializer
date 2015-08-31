@@ -14,7 +14,7 @@ namespace UnitTestProject1
         public class MyClass
         {
             [XAnyAttribute]
-            public IList<XAttribute> attr;
+            public IList<XAttribute> attr = new List<XAttribute>();
 
             [XAnyElement]
             public readonly IList<XElement> elem = new List<XElement>();

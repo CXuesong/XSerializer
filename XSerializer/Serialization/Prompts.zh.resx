@@ -153,6 +153,9 @@
   <data name="StrcutureReadonly" xml:space="preserve">
     <value>无法反序列化只读结构体。</value>
   </data>
+  <data name="TypeNameRegistered" xml:space="preserve">
+    <value>名称 {0} 已经注册到了一个与当前指派不同的类型：{1}。</value>
+  </data>
   <data name="UnregisteredType" xml:space="preserve">
     <value>在作用域“{1}”内未注册类型：{0}。</value>
   </data>

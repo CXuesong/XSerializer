@@ -169,6 +169,15 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
+        ///   查找类似 Name {0} has been registered to a different type: {1}. 的本地化字符串。
+        /// </summary>
+        internal static string TypeNameRegistered {
+            get {
+                return ResourceManager.GetString("TypeNameRegistered", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   查找类似 Type {0} has not been registered in scope: {1}. 的本地化字符串。
         /// </summary>
         internal static string UnregisteredType {
