@@ -267,6 +267,8 @@ namespace Undefined.Serialization
             // Assert obj is instance of t, hence not null.
             exprs.Add(E.Invoke((Expression<Action<object>>)(obj => Debug.Assert(t.IsInstanceOfType(obj))), argObj));
 #endif
+            // 使用类似于下面的代码以在生成的 lambda 函数中调用追踪函数
+            // exprd.Add(argState.CallMember("TestPoint", E.Constant("COLLECTION2").Cast<object>()));
             exprs.Add(localObj.AssignFrom(argObj.Cast(t)));
             var xsSurrogate = GetXStringSerializableSurrogate(t);
             if (xsSurrogate != null)
@@ -677,7 +679,7 @@ namespace Undefined.Serialization
             if (!rootType.IsInstanceOfType(obj))
                 throw new InvalidCastException(string.Format(Prompts.InvalidObjectType, obj.GetType(), rootType));
             var state = new XSerializationState(new StreamingContext(StreamingContextStates.Persistence, context), this);
-            return state.SerializeRoot(obj, rootType, rootName ?? GlobalScope.GetName(rootType), namespaces);
+            return state.SerializeRoot(obj, rootType, rootName ?? GlobalScope.GetName(rootType), namespaces, GlobalScope);
         }
 
         public object Deserialize(XElement e, object context, object existingObject)
@@ -686,7 +688,7 @@ namespace Undefined.Serialization
             if (existingObject != null && !rootType.IsInstanceOfType(existingObject))
                 throw new ArgumentException(string.Format(Prompts.InvalidObjectType, existingObject.GetType(), rootType));
             var state = new XSerializationState(new StreamingContext(StreamingContextStates.Persistence, context), this);
-            var obj = state.DeserializeRoot(e, existingObject, rootType);
+            var obj = state.DeserializeRoot(e, existingObject, rootType, GlobalScope);
             Debug.Assert(rootType.IsInstanceOfType(obj));
             return obj;
         }

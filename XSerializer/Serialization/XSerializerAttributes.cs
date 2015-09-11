@@ -15,12 +15,12 @@ namespace Undefined.Serialization
 
         internal XName GetName()
         {
-            return XName.Get(LocalName, Namespace);
+            return XName.Get(LocalName, Namespace ?? string.Empty);
         }
 
         internal XName GetName(string defaultLocalName)
         {
-            return XName.Get(LocalName ?? defaultLocalName, Namespace);
+            return XName.Get(LocalName ?? defaultLocalName, Namespace ?? string.Empty);
         }
 
         internal XName GetName(XName defaultName)
@@ -39,7 +39,7 @@ namespace Undefined.Serialization
         protected XNamedAttributeBase(string localName, string namespaceUri)
         {
             LocalName = localName;
-            Namespace = namespaceUri ?? string.Empty;
+            Namespace = namespaceUri;
         }
 
         protected XNamedAttributeBase() : this(null, null)

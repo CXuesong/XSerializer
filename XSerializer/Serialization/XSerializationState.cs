@@ -56,11 +56,11 @@ namespace Undefined.Serialization
             Trace.WriteLine("" + a);
         }
 
-        public XElement SerializeRoot(object obj, Type rootType, XName name, XSerializerNamespaceCollection namespaces)
+        public XElement SerializeRoot(object obj, Type rootType, XName name, XSerializerNamespaceCollection namespaces, SerializationScope globalScope)
         {
             Debug.Assert(rootType.IsInstanceOfType(obj));
             Debug.Assert(namespaces != null);
-            var root = SerializeXElement(obj, rootType, name, null);
+            var root = SerializeXElement(obj, rootType, name, globalScope);
             //导入命名空间。
             foreach (var ns in namespaces)
                 root.SetAttributeValue(XNamespace.Xmlns + ns.Prefix, ns.Uri);
@@ -114,9 +114,9 @@ namespace Undefined.Serialization
             return SerializeXElement(obj, nominalType, objTypeName, null);
         }
 
-        public object DeserializeRoot(XElement e, object existingObject, Type rootType)
+        public object DeserializeRoot(XElement e, object existingObject, Type rootType, SerializationScope globalScope)
         {
-            var obj = DeserializeXElement(e, existingObject, rootType, null);
+            var obj = DeserializeXElement(e, existingObject, rootType, globalScope);
             if (!rootType.IsInstanceOfType(obj))
                 throw new InvalidOperationException("Invalid root element : " + e.Name);
             return obj;

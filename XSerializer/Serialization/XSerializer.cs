@@ -159,7 +159,9 @@ namespace Undefined.Serialization
             builder.RegisterRootType(rootType);
             if (includedTypes == null) return;
             foreach (var t in includedTypes)
-                builder.RegisterType(t);
+            {
+                if (t != null) builder.RegisterType(t);
+            }
         }
     }
 

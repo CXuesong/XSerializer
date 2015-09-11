@@ -60,6 +60,7 @@
     <Compile Include="Simple1.cs" />
     <Compile Include="InPlaceDeserializationTests.cs" />
     <Compile Include="AbstractTypeTests.cs" />
+    <Compile Include="Bugs\B001.cs" />
     <Compile Include="XElementSerializableTests.cs" />
     <Compile Include="AnyElementTests.cs" />
     <Compile Include="CallbackTests.cs" />
