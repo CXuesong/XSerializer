@@ -12,11 +12,7 @@ namespace UnitTestProject1
     {
         public class MyList : ArrayList
         {
-            [OnSerializing]
-            private void OnSerializing(StreamingContext context)
-            {
 
-            }
         }
 
         [TestMethod]

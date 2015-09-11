@@ -364,11 +364,13 @@ namespace Undefined.Serialization
                         destList.CallMember(SerializationHelper.FindCollectionAddMethod(t),
                             argState.CallMember("DeserializeXCollectionItem",
                                 localEachElement, argTypeScope).Cast(viType)));
+                    //这意味着，如果具有回调函数，则此集合就是最终用于属性赋值的对象。
                     if (onDeserializingCallbacks.Count > 0 && t.IsAssignableFrom(destList.Type))
                     {
                         //集合刚刚初始化完毕后，调用回调函数，然后再添加项目。
+                        //exprd.Add(argState.CallMember("TestPoint", E.Constant("CALLBACK").Cast<object>()));
                         return E.Block(E.Block(onDeserializingCallbacks.Select(
-                            m => localObj.CallMember(m, argState.Member("Context")))),
+                            m => destList.CallMember(m, argState.Member("Context")))),
                             coreExpr);
                     }
                     return coreExpr;
@@ -482,13 +484,17 @@ namespace Undefined.Serialization
             exprd.Add(localObj.Cast<object>());
             BUILD_LAMBDA:
             // 编译。
+#if DEBUG
+            // 调试辅助。
+            var TName = t.Name;
+#endif
             var serializerLambda = E.Lambda(E.Block(typeof(void), locals, exprs), argElement, argObj, argState, argTypeScope);
             var deserializerLambda = E.Lambda(E.Block(typeof(object), locald, exprd), argElement, argObj, argState, argTypeScope);
             serializer.RegisterSerializeXElementAction(serializerLambda.Compile());
             serializer.RegisterDeserializeXElementAction(deserializerLambda.Compile());
         }
 
-        #endregion
+#endregion
         public TypeSerializer GetSerializer(Type t, bool noException)
         {
             TypeSerializer s;
