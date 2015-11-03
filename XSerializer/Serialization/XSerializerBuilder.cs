@@ -387,8 +387,8 @@ namespace Undefined.Serialization
             var bindingFlags = BindingFlags.GetProperty | BindingFlags.GetField
                                | BindingFlags.Public | BindingFlags.Instance;
             {
-                var typeAttr = t.GetCustomAttribute<XTypeAttribute>();
-                if (typeAttr != null && typeAttr.IncludeNonPublicMembers)
+                //var typeAttr = t.GetCustomAttribute<XTypeAttribute>();
+                //if (typeAttr != null && typeAttr.IncludeNonPublicMembers)
                     bindingFlags |= BindingFlags.NonPublic;
             }
             //用于保存可被识别的属性和元素列表，以便于生成未识别的元素列表。
@@ -626,11 +626,11 @@ namespace Undefined.Serialization
             if (SerializationHelper.IsCollectionType(memberType))
             {
                 //注册集合项目的类型。
-                //Register types of ollection items.
+                //Register types of Collection items.
                 // IEnumerable<T> => T
                 var viType = SerializationHelper.GetCollectionItemType(memberType);
                 var viTypeRegistered = false;
-                scope = new SerializationScope(member + " (" + member.DeclaringType + ")");
+                scope = new SerializationScope($"{member} ({member.DeclaringType})");
                 foreach (var colAttr in member.GetCustomAttributes<XCollectionItemAttribute>())
                 {
                     var thisType = colAttr.Type ?? viType;

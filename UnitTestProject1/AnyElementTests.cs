@@ -17,7 +17,9 @@ namespace UnitTestProject1
             public IList<XAttribute> attr = new List<XAttribute>();
 
             [XAnyElement]
-            public readonly IList<XElement> elem = new List<XElement>();
+            private readonly IList<XElement> elem = new List<XElement>();
+
+            public IList<XElement> Elem => elem;
 
             [XElement]
             public string myString;
@@ -41,15 +43,15 @@ namespace UnitTestProject1
             {
                 attr = new[] {new XAttribute("a1", "value1"), new XAttribute("a2", DateTime.UtcNow)}
             };
-            obj.elem.Add(new XElement("customElement", "content1"));
-            obj.elem.Add(new XElement("customElement", 12345));
-            obj.elem.Add(new XElement("customElement", Guid.NewGuid()));
+            obj.Elem.Add(new XElement("customElement", "content1"));
+            obj.Elem.Add(new XElement("customElement", 12345));
+            obj.Elem.Add(new XElement("customElement", Guid.NewGuid()));
             var doc = s.GetSerializedDocument(obj);
             Trace.WriteLine(doc);
             var obj1 = (MyClass)s.Deserialize(doc, null);
             Assert.AreEqual(obj.myString, obj1.myString);
             Assert.AreEqual(obj.attr.Count, obj1.attr.Count);
-            Assert.AreEqual(obj.elem.Count, obj1.elem.Count);
+            Assert.AreEqual(obj.Elem.Count, obj1.Elem.Count);
         }
     }
 }

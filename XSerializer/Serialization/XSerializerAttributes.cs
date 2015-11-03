@@ -25,7 +25,9 @@ namespace Undefined.Serialization
 
         internal XName GetName(XName defaultName)
         {
-            return XName.Get(LocalName ?? defaultName.LocalName, Namespace ?? defaultName.NamespaceName);
+            if (LocalName != null) return XName.Get(LocalName, Namespace ?? string.Empty);
+            if (Namespace != null) return XName.Get(defaultName.LocalName, Namespace);
+            return defaultName;
         }
 
         /// <param name="localName">
