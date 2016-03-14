@@ -169,7 +169,7 @@ namespace Undefined.Serialization {
         }
         
         /// <summary>
-        ///   查找类似 Name {0} has been registered to a different type: {1}. 的本地化字符串。
+        ///   查找类似 Name {0} has been registered to a different type: {1}; therefore it cannot be registered to {2}. 的本地化字符串。
         /// </summary>
         internal static string TypeNameRegistered {
             get {

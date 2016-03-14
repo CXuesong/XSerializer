@@ -805,7 +805,7 @@ namespace Undefined.Serialization
             Debug.Assert(type != null && name != null);
             var existing = GetType(name);
             if (existing != null && existing != type)
-                throw new ArgumentException(string.Format(Prompts.TypeNameRegistered, name, existing));
+                throw new ArgumentException(string.Format(Prompts.TypeNameRegistered, name, existing, type));
             nameTypeDict.Add(name, type);
             typeNameDict.Add(type, name);
         }

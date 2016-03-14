@@ -154,7 +154,7 @@
     <value>Cannot deserialize readonly structure.</value>
   </data>
   <data name="TypeNameRegistered" xml:space="preserve">
-    <value>Name {0} has been registered to a different type: {1}.</value>
+    <value>Name {0} has been registered to a different type: {1}; therefore it cannot be registered to {2}.</value>
   </data>
   <data name="UnregisteredType" xml:space="preserve">
     <value>Type {0} has not been registered in scope: {1}.</value>
